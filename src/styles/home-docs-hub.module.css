@@ -1,0 +1,44 @@
+.docsHub {
+  padding: 6rem 2rem;
+  text-align: center;
+}
+
+.content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.docsHub h2 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 3rem;
+}
+
+.linksGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+}
+
+.linkCard {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  padding: 2rem;
+  border-radius: var(--border-radius);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.linkCard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(163, 147, 255, 0.1);
+}
+
+.linkCard span {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}

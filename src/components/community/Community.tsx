@@ -14,13 +14,13 @@ const Community = () => {
           <h2>GitHub &rarr;</h2>
           <p>Contribute to our projects on GitHub.</p>
         </a>
-        <a href="https://discord.gg/kadena" target="_blank" rel="noopener noreferrer" className={styles.card}>
+        <a href="#" target="_blank" rel="noopener noreferrer" className={styles.card}>
           <h2>Discord &rarr;</h2>
           <p>Join the conversation on the official Kadena Discord server.</p>
         </a>
-        <a href="https://forum.kadena.io/" target="_blank" rel="noopener noreferrer" className={styles.card}>
-          <h2>Forum &rarr;</h2>
-          <p>Discuss ideas and proposals on the Kadena forum.</p>
+        <a href="https://github.com/Kadena-Pact-Community-Foundation/foundation/discussions" target="_blank" rel="noopener noreferrer" className={styles.card}>
+          <h2>Discussions &rarr;</h2>
+          <p>Discuss ideas and proposals on the Foundation's GitHub Discussions.</p>
         </a>
       </div>
     </div>

@@ -4,7 +4,8 @@
 
 .community {
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 4rem auto;
+  padding: 2rem;
   text-align: center;
 }
 
@@ -15,7 +16,8 @@
 
 .community > p {
   font-size: 1.2rem;
-  margin-bottom: 2rem;
+  color: var(--text-secondary);
+  margin-bottom: 3rem;
 }
 
 .grid {
@@ -25,29 +27,41 @@
 }
 
 .card {
-  border: 1px solid #ccc;
-  padding: 1.5rem;
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  padding: 2rem;
+  border-radius: var(--border-radius);
   text-align: left;
-  color: inherit;
   text-decoration: none;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
 }
 
-.card:hover,
-.card:focus,
-.card:active {
-  color: #0070f3;
-  border-color: #0070f3;
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(163, 147, 255, 0.1);
+  border-color: var(--primary);
 }
 
 .card h2 {
   font-size: 1.5rem;
   margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.card h2:after {
+  content: ' →';
+  color: var(--primary);
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.card:hover h2:after {
+  opacity: 1;
 }
 
 .card p {
   margin: 0;
   font-size: 1rem;
-  line-height: 1.5;
+  line-height: 1.6;
+  color: var(--text-secondary);
 }

@@ -2,13 +2,13 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
-  background-color: #1A1730;
-  color: white;
+  padding: 1.5rem 4rem;
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .logo a {
-  color: white;
+  color: var(--text-primary);
   text-decoration: none;
   font-size: 1.5rem;
   font-weight: bold;
@@ -20,15 +20,17 @@
 }
 
 .navLinks li {
-  margin-left: 2rem;
+  margin-left: 2.5rem;
 }
 
 .navLinks a {
-  color: white;
+  color: var(--text-secondary);
   text-decoration: none;
-  font-size: 1.1rem;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: color 0.2s ease-in-out;
 }
 
 .navLinks a:hover {
-  text-decoration: underline;
+  color: var(--text-link-hover);
 }
