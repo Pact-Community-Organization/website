@@ -1,0 +1,55 @@
+.footer {
+  background-color: #0F0D1A;
+  color: #BFBFBF;
+  padding: 4rem 2rem;
+  border-top: 1px solid #A393FF;
+}
+
+.footerContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2rem;
+}
+
+.logo h3 {
+  color: white;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.logo p {
+  font-size: 0.9rem;
+}
+
+.links {
+  display: flex;
+  gap: 4rem;
+}
+
+.links h4 {
+  color: white;
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.links ul {
+  list-style: none;
+  padding: 0;
+}
+
+.links li {
+  margin-bottom: 0.5rem;
+}
+
+.links a {
+  color: #BFBFBF;
+  text-decoration: none;
+}
+
+.links a:hover {
+  color: white;
+  text-decoration: underline;
+}
