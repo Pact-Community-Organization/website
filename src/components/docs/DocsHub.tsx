@@ -4,7 +4,7 @@ import styles from '@/styles/docs.module.css';
 const links = [
   {
     title: 'Pact Documentation',
-    url: 'https://pact-language.readthedocs.io/en/stable/',
+    url: 'https://docs.kadena.io/reference',
     description: 'The official documentation for the Pact smart contract language.',
   },
   {
@@ -14,12 +14,12 @@ const links = [
   },
   {
     title: 'Foundation Documentation',
-    url: '/docs',
+    url: 'https://github.com/Kadena-Pact-Community-Foundation/foundation/wiki',
     description: 'Documentation specific to the Kadena Pact Community Foundation.',
   },
   {
     title: 'Pact Tutorials',
-    url: 'https://pactlang.org/tutorials',
+    url: 'https://docs.kadena.io/quickstart',
     description: 'A collection of tutorials for learning Pact.',
   },
 ];

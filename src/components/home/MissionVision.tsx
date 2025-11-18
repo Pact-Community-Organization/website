@@ -1,14 +1,17 @@
 import React from 'react';
-import styles from '@/styles/home.module.css';
+import Link from 'next/link';
+import styles from '@/styles/mission-vision.module.css';
 
 const MissionVision = () => {
   return (
     <section className={styles.missionVision}>
-      <h2>Our Mission & Vision</h2>
-      <p>
-        To make it easy and safe for businesses to start building on Kadena. We envision a trusted Kadena ecosystem with safe, audited Pact contracts.
-      </p>
-      <a href="#">Read full Mission & Vision →</a>
+      <div className={styles.content}>
+        <h2>Our Mission & Vision</h2>
+        <p>
+          To foster a thriving, secure, and innovative ecosystem around the Pact smart contract language on the Kadena network. We empower developers by providing trusted resources, promoting open-source collaboration, and supporting community-driven governance.
+        </p>
+        <Link href="/mission-vision">Read our full Mission & Vision →</Link>
+      </div>
     </section>
   );
 };

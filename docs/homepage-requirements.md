@@ -34,7 +34,7 @@ This page must be lightweight, accessible, clean, and community-friendly.
 ### 2.2 Mission & Vision Summary
 - 1–2 short paragraphs introducing:  
   - Mission: *Make it easy and safe for businesses to start building on Kadena*  
-  - Vision: *A trusted Kadena ecosystem with safe, audited Pact contracts*  
+  - Vision: *A trusted Kadena ecosystem with safe, audited open source Pact contracts*  
 - “Read full Mission & Vision →” link
 
 ### 2.3 Smart Contract Catalog Preview

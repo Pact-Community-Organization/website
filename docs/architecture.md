@@ -48,7 +48,7 @@ Secondary navigation: Code of Conduct; Wiki entry points to extended materials.
 ### 3.2 Mission & Vision
 - Clearly articulate:
 	- Mission: Make it easy and safe for businesses to start building on Kadena
-	- Vision: A trusted Kadena ecosystem with safe, audited Pact contracts
+	- Vision: A trusted Kadena ecosystem with safe, audited open source Pact contracts
 - Core values and community purpose
 
 ### 3.3 Smart Contract Catalog

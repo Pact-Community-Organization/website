@@ -4,7 +4,7 @@ Public-facing website for the Kadena Pact Community Foundation at https://kadena
 
 ## Mission & Vision
 - Mission: Make it easy and safe for businesses to start building on Kadena.
-- Vision: A trusted Kadena ecosystem where businesses can confidently start using audited, reliable Pact contracts.
+- Vision: A trusted Kadena ecosystem where businesses can confidently start using audited, reliable open source Pact contracts.
 
 This repository implements the website that communicates and advances that mission and vision.
 

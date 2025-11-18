@@ -1,16 +1,24 @@
 import React from 'react';
-import styles from '@/styles/home.module.css';
+import Link from 'next/link';
+import styles from '@/styles/hero.module.css';
 
 const Hero = () => {
   return (
     <section className={styles.hero}>
       <div className={styles.heroContent}>
-        <h1>Kadena Pact Community Foundation</h1>
-        <p>Your trusted resource for building on Kadena with Pact.</p>
+        <h1>
+          Building the Future of Pact, <span className={styles.gradientText}>Together</span>.
+        </h1>
+        <p>
+          The Kadena Pact Community Foundation is a neutral, community-driven hub for developers, contributors, and innovators building on the Kadena network.
+        </p>
         <div className={styles.ctaButtons}>
-          <button>Explore Smart Contracts</button>
-          <button>Learn Pact</button>
-          <button>Join the Community</button>
+          <Link href="/contracts" passHref>
+            <button className={`${styles.button} ${styles.buttonPrimary}`}>Explore Contracts</button>
+          </Link>
+          <Link href="/docs" passHref>
+            <button className={`${styles.button} ${styles.buttonSecondary}`}>Read the Docs</button>
+          </Link>
         </div>
       </div>
     </section>
