@@ -1,8 +1,8 @@
 # Website Architecture Plan
 
-Kadena Pact Community Foundation — Information Architecture
+Pact Community Organization — Information Architecture
 
-This document defines the structural layout of the Kadena Pact Community Foundation public website hosted at kadena-community.org. It aligns with Issue #3 and is optimized for clarity, scalability, and community-driven growth. It serves as the foundational map for developers, contributors, designers, and AI agents.
+This document defines the structural layout of the Pact Community Organization public website hosted at pact-community.org. It aligns with Issue #3 and is optimized for clarity, scalability, and community-driven growth. It serves as the foundational map for developers, contributors, designers, and AI agents.
 
 Related: Issue #3 – Website Architecture Plan
 
@@ -129,4 +129,4 @@ All major sections map to predictable URL paths:
 
 ---
 
-Approved by Product Owner, Kadena Pact Community Foundation
+Approved by Product Owner, Pact Community Organization

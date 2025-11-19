@@ -1,6 +1,6 @@
-# Kadena Pact Community Foundation — Brand Guidelines (Draft v1)
+# Pact Community Organization — Brand Guidelines (Draft v1)
 
-This document defines the initial visual identity for the **Kadena Pact Community Foundation** and the **kadena-community.org** website.  
+This document defines the initial visual identity for the **Pact Community Organization** and the **pact-community.org** website.  
 The purpose is to establish a familiar visual language that feels aligned with **Kadena.io**, while remaining distinct, neutral, and community-driven.
 
 These guidelines are intentionally lightweight to support exploration in early iterations.
@@ -28,7 +28,7 @@ High contrast, readable typography, and simple layouts.
 Until the official Foundation logo is created, use this placeholder approach:
 
 - **Text-only logo**  
-  - Primary: `Kadena Pact Community Foundation`  
+  - Primary: `Pact Community Organization`  
   - Secondary short version: `KPCF`  
 - Use Kadena.io’s gradient inspiration (pink → purple) for accent elements around the logotype, but **do not recreate the Kadena corporate K**.
 

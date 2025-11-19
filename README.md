@@ -1,6 +1,6 @@
 # Kadena Community Website
 
-Public-facing website for the Kadena Pact Community Foundation at https://kadena-community.org.
+Public-facing website for the Pact Community Organization at https://pact-community.org.
 
 ## Mission & Vision
 - Mission: Make it easy and safe for businesses to start building on Kadena.

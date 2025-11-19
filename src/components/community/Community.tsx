@@ -6,7 +6,7 @@ const Community = () => {
     <div className={styles.community}>
       <h1>Community & Contribution</h1>
       <p>
-        The Kadena Pact Community Foundation is a community-driven organization.
+        The Pact Community Organization is a community-driven organization.
         We welcome contributions from everyone.
       </p>
       <div className={styles.grid}>

@@ -6,7 +6,7 @@ const Navbar = () => {
   return (
     <nav className={styles.navbar}>
       <div className={styles.logo}>
-        <Link href="/">Kadena Pact Community Foundation</Link>
+        <Link href="/">Pact Community Organization</Link>
       </div>
       <ul className={styles.navLinks}>
         <li>

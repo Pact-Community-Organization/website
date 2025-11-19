@@ -7,8 +7,8 @@ const Footer = () => {
     <footer className={styles.footer}>
       <div className={styles.footerContent}>
         <div className={styles.logo}>
-          <h3>Kadena Pact Community Foundation</h3>
-          <p>&copy; {new Date().getFullYear()} Kadena Pact Community Foundation. Licensed under MIT.</p>
+          <h3>Pact Community Organization</h3>
+          <p>&copy; {new Date().getFullYear()} Pact Community Organization. Licensed under MIT.</p>
         </div>
         <div className={styles.links}>
           <div>
