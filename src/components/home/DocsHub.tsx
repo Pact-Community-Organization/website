@@ -17,7 +17,7 @@ const DocsHub = () => {
     },
     { 
       name: 'Foundation Wiki', 
-      href: 'https://github.com/Kadena-Pact-Community-Foundation/foundation/wiki',
+      href: 'https://github.com/Pact-Community-Organization/foundation/wiki',
       icon: <Library size={24} color="var(--primary)" />
     },
   ];
