@@ -9,8 +9,9 @@ Public-facing website for the Pact Community Organization at https://pact-commun
 This repository implements the website that communicates and advances that mission and vision.
 
 ## Useful Links
-- Wiki: https://github.com/Pact-Community-Organization/kadena-community-website/wiki
-- GitHub Pages (preview): https://pact-community-organization.github.io/kadena-community-website/
+- Wiki: https://github.com/Pact-Community-Organization/website/wiki
+- Wiki: https://github.com/Pact-Community-Organization/website/wiki
+- GitHub Pages (preview): https://pact-community-organization.github.io/website/
 - Foundation repository (governance, docs, automation): https://github.com/Pact-Community-Organization/foundation
 
 ## Getting Started
@@ -18,8 +19,8 @@ This repository implements the website that communicates and advances that missi
 
 1. Fork and clone the repo:
    ```bash
-   git clone https://github.com/Pact-Community-Organization/kadena-community-website.git
-   cd kadena-community-website
+   git clone https://github.com/Pact-Community-Organization/website.git
+   cd website
    ```
 2. Create a branch linked to an issue (replace N):
    ```bash
