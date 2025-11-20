@@ -10,7 +10,7 @@ const Hero = () => {
           Building the Future of Pact, <span className={styles.gradientText}>Together</span>.
         </h1>
         <p>
-          The Pact Community Organization is a neutral, community-driven hub for developers, contributors, and innovators building with Pact.
+          The Pact Community Organization is a neutral, community-driven hub for developers, contributors, and innovators building on the Pact network.
         </p>
         <div className={styles.ctaButtons}>
           <Link href="/contracts" passHref>

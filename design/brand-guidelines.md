@@ -1,7 +1,7 @@
 # Pact Community Organization — Brand Guidelines (Draft v1)
 
 This document defines the initial visual identity for the **Pact Community Organization** and the **pact-community.org** website.  
-The purpose is to establish a familiar visual language that feels familiar to developers in the Pact ecosystem, while remaining distinct, neutral, and community-driven.
+The purpose is to establish a familiar visual language that feels aligned with **Pact.io**, while remaining distinct, neutral, and community-driven.
 
 These guidelines are intentionally lightweight to support exploration in early iterations.
 
@@ -15,8 +15,8 @@ Design should feel welcoming, open, and safe for newcomers.
 ### **Professional but Approachable**
 Avoid over-corporate aesthetics; maintain credibility but feel human.
 
-### **Aligned with the Pact ecosystem**
-Color and tone should feel like “you are still within the broader Pact ecosystem.”
+### **Aligned with Pact’s ecosystem**
+Color and tone should feel like “you are still inside the Pact universe.”
 
 ### **Accessible & Clear**
 High contrast, readable typography, and simple layouts.
@@ -30,7 +30,7 @@ Until the official Foundation logo is created, use this placeholder approach:
 - **Text-only logo**  
   - Primary: `Pact Community Organization`  
   - Secondary short version: `KPCF`  
--- Use established gradient inspiration (pink → purple) for accent elements around the logotype, but **do not recreate any corporate K mark**.
+- Use Pact.io’s gradient inspiration (pink → purple) for accent elements around the logotype, but **do not recreate the Pact corporate K**.
 
 This avoids copyright/brand confusion while maintaining familiarity.
 
@@ -38,13 +38,13 @@ This avoids copyright/brand confusion while maintaining familiarity.
 
 ## 3. Color Palette (v1 Draft)
 
-Colors selected to echo established ecosystem aesthetics while preserving a distinct identity:
+Colors selected to echo Pact.io aesthetics while preserving a distinct identity:
 
 ### **Primary Colors**
 | Purpose | Color | Hex |
 |--------|--------|------|
-| Primary Gradient Start | Primary Pink | `#FF4DE3` |
-| Primary Gradient End | Primary Purple | `#7F00FF` |
+| Primary Gradient Start | Pact Pink | `#FF4DE3` |
+| Primary Gradient End | Pact Purple | `#7F00FF` |
 | Accent | Vibrant Indigo | `#5A00E0` |
 
 ### **Secondary Colors**

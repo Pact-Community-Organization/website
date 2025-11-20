@@ -2,7 +2,7 @@
 
 ## 1. Introduction
 
-This document outlines the findings of a security audit performed on the `website` repository. The audit was conducted to identify and remediate any potential security vulnerabilities, with a focus on sensitive information exposure, before making the repository public.
+This document outlines the findings of a security audit performed on the `pact-community-website` repository. The audit was conducted to identify and remediate any potential security vulnerabilities, with a focus on sensitive information exposure, before making the repository public.
 
 ## 2. Scope
 
@@ -32,4 +32,4 @@ All identified temporary and artifact files have been removed from the repositor
 
 ## 5. Conclusion
 
-The security audit of the `website` repository is complete. No sensitive information was found in the file system or Git history. The repository is considered safe for public release.
+The security audit of the `pact-community-website` repository is complete. No sensitive information was found in the file system or Git history. The repository is considered safe for public release.

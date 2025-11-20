@@ -3,14 +3,14 @@ import styles from '@/styles/docs.module.css';
 
 const links = [
   {
-    title: 'Pact Documentation (canonical)',
-    url: 'https://github.com/kda-community/pact-5',
-    description: 'Canonical Pact language documentation and examples (migrated).',
+    title: 'Pact Documentation',
+    url: 'https://docs.pact.io/reference',
+    description: 'The official documentation for the Pact smart contract language.',
   },
   {
-    title: 'Pact Developer Repository',
-    url: 'https://github.com/kda-community/pact-5',
-    description: 'Developer resources and examples hosted in the Pact-5 repository.',
+    title: 'Pact Developer Portal',
+    url: 'https://docs.pact.io/',
+    description: 'The official developer portal for the Pact platform.',
   },
   {
     title: 'Foundation Documentation',
@@ -19,8 +19,8 @@ const links = [
   },
   {
     title: 'Pact Tutorials',
-    url: 'https://github.com/kda-community/pact-5',
-    description: 'Tutorials and quickstarts centralized in the Pact-5 repository.',
+    url: 'https://docs.pact.io/quickstart',
+    description: 'A collection of tutorials for learning Pact.',
   },
 ];
 

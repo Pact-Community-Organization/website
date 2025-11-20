@@ -16,7 +16,7 @@ const Community = () => {
         </a>
         <a href="#" target="_blank" rel="noopener noreferrer" className={styles.card}>
           <h2>Discord &rarr;</h2>
-          <p>Join the conversation on the Pact community Discord.</p>
+          <p>Join the conversation on the official Pact Discord server.</p>
         </a>
         <a href="https://github.com/Pact-Community-Organization/foundation/discussions" target="_blank" rel="noopener noreferrer" className={styles.card}>
           <h2>Discussions &rarr;</h2>
