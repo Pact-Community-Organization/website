@@ -8,13 +8,13 @@ const MissionVisionContent = () => {
       <section>
         <h2>Our Mission</h2>
         <p>
-          Make it easy and safe for businesses to start building on Kadena.
+          Make it easy and safe for businesses to start building with Pact.
         </p>
       </section>
       <section>
         <h2>Our Vision</h2>
         <p>
-          A trusted Kadena ecosystem where businesses can confidently start using audited, reliable open source Pact contracts.
+          A trusted Pact ecosystem where businesses can confidently start using audited, reliable open source Pact contracts.
         </p>
       </section>
     </div>

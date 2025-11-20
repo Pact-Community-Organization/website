@@ -6,13 +6,13 @@ import styles from '@/styles/home-docs-hub.module.css';
 const DocsHub = () => {
   const links = [
     { 
-      name: 'Pact Language Docs', 
-      href: 'https://docs.kadena.io/reference',
+      name: 'Pact Documentation (canonical)', 
+      href: 'https://github.com/kda-community/pact-5',
       icon: <Book size={24} color="var(--primary)" />
     },
     { 
-      name: 'Kadena Dev Portal', 
-      href: 'https://docs.kadena.io/',
+      name: 'Pact Developer Repository', 
+      href: 'https://github.com/kda-community/pact-5',
       icon: <Code size={24} color="var(--primary)" />
     },
     { 

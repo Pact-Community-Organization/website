@@ -3,8 +3,8 @@
 Public-facing website for the Pact Community Organization at https://pact-community.org.
 
 ## Mission & Vision
-- Mission: Make it easy and safe for businesses to start building on Kadena.
-- Vision: A trusted Kadena ecosystem where businesses can confidently start using audited, reliable open source Pact contracts.
+- Mission: Make it easy and safe for businesses to start building with Pact.
+- Vision: A trusted Pact ecosystem where businesses can confidently start using audited, reliable open source Pact contracts.
 
 This repository implements the website that communicates and advances that mission and vision.
 

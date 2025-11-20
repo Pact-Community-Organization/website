@@ -13,7 +13,7 @@ const ContractPreview = () => {
     },
     { 
       name: 'NFT Marketplace', 
-      description: 'A secure and audited marketplace for buying, selling, and trading non-fungible tokens (NFTs) on Kadena.',
+      description: 'A secure and audited marketplace for buying, selling, and trading non-fungible tokens (NFTs) using Pact.',
       icon: <ShieldCheck size={24} color="var(--primary)" />,
       link: '/contracts/nft-marketplace'
     },

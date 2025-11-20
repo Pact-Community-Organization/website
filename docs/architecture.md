@@ -11,7 +11,7 @@ Related: Issue #3 – Website Architecture Plan
 ## 1. Purpose of This Architecture
 The goal is to create a clear, intuitive, and professional website structure that communicates:
 - Mission, vision, and purpose of the Foundation
-- Educational content for Pact and Kadena builders
+- Educational content for Pact builders
 - Community resources and contribution pathways
 - Smart contract catalog for audited Pact contracts
 - Documentation access (internal + external)
@@ -47,8 +47,8 @@ Secondary navigation: Code of Conduct; Wiki entry points to extended materials.
 
 ### 3.2 Mission & Vision
 - Clearly articulate:
-	- Mission: Make it easy and safe for businesses to start building on Kadena
-	- Vision: A trusted Kadena ecosystem with safe, audited open source Pact contracts
+	- Mission: Make it easy and safe for businesses to start building with Pact
+	- Vision: A trusted Pact ecosystem with safe, audited open source Pact contracts
 - Core values and community purpose
 
 ### 3.3 Smart Contract Catalog
@@ -60,7 +60,7 @@ Secondary navigation: Code of Conduct; Wiki entry points to extended materials.
 ### 3.4 Documentation Hub
 - Central landing page pointing to:
 	- Pact documentation
-	- Kadena developer docs
+	- Developer docs for Pact-compatible platforms
 	- Foundation documentation
 	- Tutorials (internal and external)
 - Serves as the knowledge center for builders
