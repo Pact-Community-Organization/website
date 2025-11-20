@@ -7,12 +7,12 @@ const DocsHub = () => {
   const links = [
     { 
       name: 'Pact Language Docs', 
-      href: 'https://docs.kadena.io/reference',
+      href: 'https://docs.pact.io/reference',
       icon: <Book size={24} color="var(--primary)" />
     },
     { 
-      name: 'Kadena Dev Portal', 
-      href: 'https://docs.kadena.io/',
+      name: 'Pact Dev Portal', 
+      href: 'https://docs.pact.io/',
       icon: <Code size={24} color="var(--primary)" />
     },
     { 

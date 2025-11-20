@@ -4,13 +4,13 @@ import styles from '@/styles/docs.module.css';
 const links = [
   {
     title: 'Pact Documentation',
-    url: 'https://docs.kadena.io/reference',
+    url: 'https://docs.pact.io/reference',
     description: 'The official documentation for the Pact smart contract language.',
   },
   {
-    title: 'Kadena Developer Portal',
-    url: 'https://docs.kadena.io/',
-    description: 'The official developer portal for the Kadena platform.',
+    title: 'Pact Developer Portal',
+    url: 'https://docs.pact.io/',
+    description: 'The official developer portal for the Pact platform.',
   },
   {
     title: 'Foundation Documentation',
@@ -19,7 +19,7 @@ const links = [
   },
   {
     title: 'Pact Tutorials',
-    url: 'https://docs.kadena.io/quickstart',
+    url: 'https://docs.pact.io/quickstart',
     description: 'A collection of tutorials for learning Pact.',
   },
 ];
