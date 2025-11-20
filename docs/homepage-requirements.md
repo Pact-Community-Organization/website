@@ -1,7 +1,7 @@
 # Homepage Requirements  
 Pact Community Organization — Issue #5
 
-This document defines the required content, visual layout, and measurable KPIs for the homepage of **pact-community.org**. It follows the Foundation’s mission to make it easy and safe for builders and businesses to develop with Pact. The homepage must feel familiar to users of kadena.io, while still representing the distinct identity of the Pact Community Organization.
+This document defines the required content, visual layout, and measurable KPIs for the homepage of **pact-community.org**. It follows the Foundation’s mission to make it easy and safe for builders and businesses to develop with Pact. The homepage should remain familiar to users of the previous site, while representing the distinct identity of the Pact Community Organization.
 
 This document is written for developers, contributors, designers, and AI agents to ensure clarity, consistency, and long-term maintainability.
 
