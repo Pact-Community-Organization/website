@@ -1,5 +1,18 @@
-# Website ownership
-/docs/          @Pact-Community-Organization/website-team
-/static/        @Pact-Community-Organization/website-team
-*.md            @Pact-Community-Organization/website-team @Pact-Community-Organization/core-maintainers
+# Foundation CODEOWNERS
+# Core maintainers own most files; security working group also owns security docs
+/docs/          @Pact-Community-Organization/core-maintainers
+*.md            @Pact-Community-Organization/core-maintainers
+SECURITY.md     @Pact-Community-Organization/security-wg @Pact-Community-Organization/core-maintainers
+/.github/       @Pact-Community-Organization/core-maintainers
+# Fallback
 *               @Pact-Community-Organization/core-maintainers
+## CODEOWNERS for Wiki and Pages
+# GitHub Pages content (served from docs/)
+/docs/** @DaisukeFlowers
+
+# Pages sync workflow
+/.github/workflows/wiki-sync.yml @DaisukeFlowers
+
+# Optional: top-level Pages index and mapping file (redundant due to /docs/**)
+/docs/index.md @DaisukeFlowers
+/docs/wiki-home.md @DaisukeFlowers
