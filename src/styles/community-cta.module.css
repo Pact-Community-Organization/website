@@ -1,9 +1,7 @@
 .communityCTA {
   padding: 6rem 2rem;
   text-align: center;
-  background: linear-gradient(rgba(15, 13, 26, 0.9), rgba(15, 13, 26, 0.9)), url('/path-to-abstract-background.png');
-  background-size: cover;
-  background-position: center;
+  background: linear-gradient(rgba(15, 13, 26, 0.9), rgba(15, 13, 26, 0.9));
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
 }
