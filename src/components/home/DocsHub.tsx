@@ -5,14 +5,14 @@ import styles from '@/styles/home-docs-hub.module.css';
 
 const DocsHub = () => {
   const links = [
-    { 
-      name: 'Pact Language Docs', 
-      href: 'https://docs.pact.io/reference',
+    {
+      name: 'Pact Language Docs',
+      href: 'https://docs.kadena.io/smart-contract-dev',
       icon: <Book size={24} color="var(--primary)" />
     },
-    { 
-      name: 'Pact Dev Portal', 
-      href: 'https://docs.pact.io/',
+    {
+      name: 'Kadena Dev Portal',
+      href: 'https://docs.kadena.io/',
       icon: <Code size={24} color="var(--primary)" />
     },
     { 

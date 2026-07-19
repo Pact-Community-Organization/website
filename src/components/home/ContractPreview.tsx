@@ -4,24 +4,26 @@ import { FileCode, ShieldCheck, Handshake } from 'lucide-react';
 import styles from '@/styles/contract-preview.module.css';
 
 const ContractPreview = () => {
+  const CATALOG =
+    'https://github.com/Pact-Community-Organization/pact-contract-catalog/tree/main/contracts/library';
   const contracts = [
-    { 
-      name: 'Fungible Token', 
-      description: 'A standard interface for fungible tokens, inspired by ERC-20. Includes functions for transfers, allowances, and balance queries.',
+    {
+      name: 'Fungible Token',
+      description: 'A hardened fungible-v2 + fungible-xchain-v1 token template: coin-pattern guard enforcement, governed mint, and cross-chain transfer semantics.',
       icon: <FileCode size={24} color="var(--primary)" />,
-      link: '/contracts/fungible-token'
+      link: `${CATALOG}/token-fungible`
     },
-    { 
-      name: 'NFT Marketplace', 
-      description: 'A secure and audited marketplace for buying, selling, and trading non-fungible tokens (NFTs) on Pact.',
+    {
+      name: 'NFT Marketplace',
+      description: 'A conservation-checked NFT marketplace with immutable creator royalties — the reference implementation of the Kadena NFT interface standard.',
       icon: <ShieldCheck size={24} color="var(--primary)" />,
-      link: '/contracts/nft-marketplace'
+      link: `${CATALOG}/royalty-sale`
     },
-    { 
-      name: 'DAO Governance', 
-      description: 'A modular framework for creating and managing Decentralized Autonomous Organizations (DAOs) with on-chain voting.',
+    {
+      name: 'DAO Voting',
+      description: 'Membership voting with quorum and threshold, per-proposal snapshots of the passage bar, and rotation that revokes in-flight votes.',
       icon: <Handshake size={24} color="var(--primary)" />,
-      link: '/contracts/dao-governance'
+      link: `${CATALOG}/dao-voting`
     },
   ];
 
@@ -40,7 +42,9 @@ const ContractPreview = () => {
                 <h3>{contract.name}</h3>
               </div>
               <p>{contract.description}</p>
-              <Link href={contract.link}>View Contract →</Link>
+              <Link href={contract.link} target="_blank" rel="noopener noreferrer">
+                View Contract →
+              </Link>
             </div>
           ))}
         </div>
