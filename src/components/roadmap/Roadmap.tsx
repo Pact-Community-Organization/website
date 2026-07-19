@@ -6,12 +6,13 @@ const CATALOG = 'https://github.com/Pact-Community-Organization/pact-contract-ca
 
 const shipped = [
   {
-    title: 'Contract Library — nine security-reviewed templates',
+    title: 'Contract Library — eleven security-reviewed templates',
     body: (
       <>
-        Deployable templates for the foundations most projects need: fungible token, gas station,
-        multisig treasury, vesting, DAO voting, oracle feed, property lease, an NFT marketplace, and
-        a minimal starter. Every entry shipped through a blocking test suite, static analysis, and a
+        Deployable templates for the foundations most projects need: fungible token, fixed-supply
+        community tokens (plain, and with advisory live-vote governance), gas station, multisig
+        treasury, vesting, DAO voting, oracle feed, property lease, an NFT marketplace, and a
+        minimal starter. Every entry shipped through a blocking test suite, static analysis, and a
         documented adversarial review. <Link href="/contracts">Browse the catalog →</Link>
       </>
     ),
