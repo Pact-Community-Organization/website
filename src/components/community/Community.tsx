@@ -20,7 +20,7 @@ const Community = () => {
         </a>
         <a href="https://github.com/Pact-Community-Organization/foundation/discussions" target="_blank" rel="noopener noreferrer" className={styles.card}>
           <h2>Discussions &rarr;</h2>
-          <p>Discuss ideas and proposals on the Foundation's GitHub Discussions.</p>
+          <p>Discuss ideas and proposals on the Foundation&apos;s GitHub Discussions.</p>
         </a>
       </div>
     </div>
