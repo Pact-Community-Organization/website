@@ -3,6 +3,13 @@ import styles from '@/styles/docs.module.css';
 
 const links = [
   {
+    title: 'NFT Documentation',
+    url: '/nft',
+    description:
+      'The PCO NFT standard and framework — guides for creators, sellers, buyers, and businesses building their own marketplace.',
+    internal: true,
+  },
+  {
     title: 'Pact Documentation',
     url: 'https://docs.pact.io/reference',
     description: 'The official documentation for the Pact smart contract language.',
@@ -31,7 +38,13 @@ const DocsHub = () => {
       <p>Everything you need to build with Pact, in one place.</p>
       <div className={styles.grid}>
         {links.map((link, index) => (
-          <a key={index} href={link.url} target="_blank" rel="noopener noreferrer" className={styles.card}>
+          <a
+            key={index}
+            href={link.url}
+            target={link.internal ? undefined : '_blank'}
+            rel={link.internal ? undefined : 'noopener noreferrer'}
+            className={styles.card}
+          >
             <h2>{link.title} &rarr;</h2>
             <p>{link.description}</p>
           </a>

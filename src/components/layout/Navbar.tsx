@@ -16,6 +16,9 @@ const Navbar = () => {
           <Link href="/contracts">Smart Contracts</Link>
         </li>
         <li>
+          <Link href="/nft">NFT</Link>
+        </li>
+        <li>
           <Link href="/docs">Docs</Link>
         </li>
         <li>
