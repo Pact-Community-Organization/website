@@ -14,6 +14,22 @@ const contracts = [
     version: '0.2.0',
   },
   {
+    name: 'Token (fixed supply)',
+    description:
+      'A frozen, non-upgradeable fungible-v2 token: one-shot exact-distribution mint, self-burn only, no admin surface — immutability as the product.',
+    repository: `${CATALOG}/token-fixed-supply`,
+    auditState: 'Self-reviewed',
+    version: '1.0.0',
+  },
+  {
+    name: 'Token (fixed supply + advisory governance)',
+    description:
+      'The fixed-supply token plus advisory live-vote governance: vote weight = current balance, balance decreases release recorded votes, permanent on-chain tallies — votes execute nothing.',
+    repository: `${CATALOG}/token-fixed-supply-gov`,
+    auditState: 'Self-reviewed',
+    version: '1.0.0',
+  },
+  {
     name: 'Gas Station',
     description:
       'Drain-defended gas sponsorship: bounds and accounting against actual chain gas, never signer-supplied values, with a per-user on-chain allowlist.',
