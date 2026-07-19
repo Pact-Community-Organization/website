@@ -3,7 +3,7 @@ import NftCreators from '@/components/nft/NftCreators';
 import styles from '@/styles/nft.module.css';
 
 export const metadata = {
-  title: 'NFTs for creators — Pact Community Organization',
+  title: 'NFTs for creators',
   description: 'Mint NFTs with chain-enforced royalties and unforgeable identity.',
 };
 

@@ -1,0 +1,74 @@
+.container {
+  padding: 2rem;
+}
+
+.roadmap {
+  max-width: 900px;
+  margin: 4rem auto;
+  padding: 2rem;
+}
+
+.roadmap h1 {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.roadmap > p {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.updated {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 3rem;
+}
+
+.section {
+  margin-bottom: 3rem;
+}
+
+.section h2 {
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.entry {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 1.5rem 2rem;
+  margin-bottom: 1rem;
+}
+
+.entry h3 {
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.entry p {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.entry a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.entry a:hover {
+  text-decoration: underline;
+}
+
+.status {
+  border-left: 3px solid var(--primary);
+}
+
+.note {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}

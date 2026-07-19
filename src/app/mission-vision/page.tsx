@@ -1,5 +1,9 @@
 import React from 'react';
 import MissionVisionContent from '@/components/mission-vision/MissionVisionContent';
+
+export const metadata = {
+  title: 'Mission & Vision',
+};
 import styles from '@/styles/mission-vision.module.css';
 
 const MissionVisionPage = () => {

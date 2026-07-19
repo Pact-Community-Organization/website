@@ -3,7 +3,7 @@ import NftOverview from '@/components/nft/NftOverview';
 import styles from '@/styles/nft.module.css';
 
 export const metadata = {
-  title: 'NFTs on Pact — Pact Community Organization',
+  title: 'NFTs on Pact',
   description: 'The PCO NFT standard and framework — documentation for creators, sellers, buyers, and marketplace builders.',
 };
 

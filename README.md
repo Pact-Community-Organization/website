@@ -9,50 +9,47 @@ Public-facing website for the Pact Community Organization at https://pact-commun
 This repository implements the website that communicates and advances that mission and vision.
 
 ## Useful Links
-- Wiki: https://github.com/Pact-Community-Organization/website/wiki
 - Live site: https://pact-community.org
 - Foundation repository (governance, docs, automation): https://github.com/Pact-Community-Organization/foundation
+- Foundation wiki: https://github.com/Pact-Community-Organization/foundation/wiki
+
+## Tech Stack
+Next.js (App Router, static export) + TypeScript + CSS Modules. `next build` writes the static
+site to `out/`, which deploys to GitHub Pages via `.github/workflows/deploy.yml` on every push
+to `main`.
 
 ## Getting Started
-> The initial tech stack is being defined. Until then, contributors can help by planning content and structure.
-
 1. Fork and clone the repo:
    ```bash
    git clone https://github.com/Pact-Community-Organization/website.git
    cd website
+   npm install
    ```
-2. Create a branch linked to an issue (replace N):
+2. Run the dev server:
+   ```bash
+   npm run dev
+   ```
+3. Before opening a PR, make sure the production build and lint pass:
+   ```bash
+   npm run build
+   npm run lint
+   ```
+4. Create a branch linked to an issue (replace N):
    ```bash
    git checkout -b feat/<short-topic>-#N
    ```
-3. Add or update planning docs under `docs/` and assets under `design/`.
-4. Commit with an issue reference (refs or closes):
-   ```bash
-   git commit -m "docs: add homepage requirements (refs #5)"
-   git push -u origin feat/<short-topic>-#N
-   ```
 5. Open a PR describing the change and linking the issue.
-
-When the implementation stack is finalized, this README will include local dev commands and build/deploy steps.
 
 ## Contribution Guidelines
 - Always reference an Issue in commits and PRs (e.g., `refs #N` or `closes #N`).
-- Keep content consistent with the Foundation’s mission and voice; prefer reusing wording from the Wiki.
+- Keep content consistent with the Foundation’s mission and voice.
 - Organize content:
-  - `docs/` for content plans and requirements
-  - `design/` for branding and visual guidelines
-  - `src/` for site source once the stack is chosen
-- Follow the Wiki for standards and conventions.
-
-## Example Repository Structure
-```text
-.github/             # Workflows and repo config
-/docs/               # Content plans (architecture, pages, requirements)
-/design/             # Branding, visual assets, design tokens
-/public/             # Static assets (favicons, robots, etc.)
-/src/                # Website source (framework TBD)
-README.md
-```
+  - `src/app/` — routes (one directory per page)
+  - `src/components/` — page content and layout components
+  - `src/styles/` — CSS Modules
+  - `public/` — static assets, `CNAME`, and redirect stubs for legacy URLs
+  - `docs/` — content plans and requirements
+  - `design/` — branding and visual guidelines
 
 ## Scope of This Repository
 This repository is solely for the public website. Foundation governance, broader documentation, and automation live in the Foundation repo:

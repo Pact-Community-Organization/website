@@ -32,7 +32,7 @@ const ContractPreview = () => {
       <div className={styles.content}>
         <h2>Featured Smart Contracts</h2>
         <p>
-          Explore a curated collection of audited, community-vetted smart contracts ready for use in your projects.
+          Explore a curated collection of security-reviewed smart contract templates — every entry ships with a blocking test suite, static analysis, and a documented adversarial review.
         </p>
         <div className={styles.cardGrid}>
           {contracts.map((contract, index) => (
