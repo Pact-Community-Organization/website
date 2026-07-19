@@ -14,9 +14,9 @@ const Community = () => {
           <h2>GitHub &rarr;</h2>
           <p>Contribute to our projects on GitHub.</p>
         </a>
-        <a href="#" target="_blank" rel="noopener noreferrer" className={styles.card}>
-          <h2>Discord &rarr;</h2>
-          <p>Join the conversation on the official Pact Discord server.</p>
+        <a href="https://github.com/Pact-Community-Organization/pact-contract-catalog/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" className={styles.card}>
+          <h2>Review a Template &rarr;</h2>
+          <p>The fastest way to raise the catalog&apos;s trust level: independently review an existing contract template.</p>
         </a>
         <a href="https://github.com/Pact-Community-Organization/foundation/discussions" target="_blank" rel="noopener noreferrer" className={styles.card}>
           <h2>Discussions &rarr;</h2>

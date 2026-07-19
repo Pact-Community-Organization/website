@@ -1,5 +1,9 @@
 import React from 'react';
 import Community from '@/components/community/Community';
+
+export const metadata = {
+  title: 'Community & Contribution',
+};
 import styles from '@/styles/community.module.css';
 
 const CommunityPage = () => {

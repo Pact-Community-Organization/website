@@ -18,6 +18,7 @@ const Footer = () => {
               <li><Link href="/mission-vision">Mission & Vision</Link></li>
               <li><Link href="/contracts">Smart Contracts</Link></li>
               <li><Link href="/docs">Docs</Link></li>
+              <li><Link href="/roadmap">Roadmap</Link></li>
               <li><Link href="/community">Community</Link></li>
             </ul>
           </div>
@@ -25,8 +26,8 @@ const Footer = () => {
             <h4>Community</h4>
             <ul>
               <li><a href="https://github.com/Pact-Community-Organization" target="_blank" rel="noopener noreferrer">GitHub</a></li>
-              <li><a href="#" target="_blank" rel="noopener noreferrer">Discord</a></li>
               <li><a href="https://github.com/Pact-Community-Organization/foundation/discussions" target="_blank" rel="noopener noreferrer">Discussions</a></li>
+              <li><a href="https://github.com/Pact-Community-Organization/pact-contract-catalog" target="_blank" rel="noopener noreferrer">Contract Catalog</a></li>
             </ul>
           </div>
         </div>

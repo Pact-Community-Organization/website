@@ -65,3 +65,22 @@
   line-height: 1.6;
   color: var(--text-secondary);
 }
+
+.sectionHeading {
+  font-size: 2rem;
+  margin: 4rem 0 2rem;
+}
+
+.toolLinks {
+  margin-top: 1.5rem;
+}
+
+.toolLinks a {
+  color: var(--primary);
+  text-decoration: none;
+  margin-right: 1.5rem;
+}
+
+.toolLinks a:hover {
+  text-decoration: underline;
+}
