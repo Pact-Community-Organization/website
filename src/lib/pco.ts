@@ -4,7 +4,7 @@
 //             ONLY sponsored action). Signed by the in-browser throwaway key.
 //   others  — SELF-PAID: transfer / cross-chain / vote / propose. Signed by the
 //             connected wallet, which pays its own coin.GAS.
-import { CFG, T, C, G, local, buildExec, submitAndPoll, cmdHash, signHash } from './chain';
+import { CFG, T, C, G, CHAINS, local, localOn, buildExec, submitAndPoll, cmdHash, signHash } from './chain';
 import { walletSign, type ConnectedWallet, type LocalAccount } from './wallets';
 
 // ---------- reads ----------
@@ -138,6 +138,16 @@ export function rotate(w: ConnectedWallet, account: string, newPubKey: string) {
 export async function lookupAccount(account: string): Promise<{ balance: number } | null> {
   try { return { balance: dec(await local(`(${T}.get-balance "${account}")`)) }; }
   catch { return null; }
+}
+// PCO lives on all 20 chains — read every chain in parallel and keep the
+// nonzero ones (nonexistent accounts on a chain simply read as absent).
+export async function lookupAllChains(account: string): Promise<{ total: number; perChain: { chain: string; balance: number }[] }> {
+  const balances = await Promise.all(CHAINS.map(async (ch) => ({
+    chain: ch,
+    balance: dec(await localOn(ch, `(${T}.get-balance "${account}")`).catch(() => 0)) || 0,
+  })));
+  const perChain = balances.filter((b) => b.balance > 0);
+  return { total: perChain.reduce((s, b) => s + b.balance, 0), perChain };
 }
 export function propose(w: ConnectedWallet, title: string, body: string, days: number) {
   const clean = (s: string) => s.replace(/["\\]/g, '');
