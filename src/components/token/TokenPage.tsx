@@ -38,8 +38,10 @@ export default function TokenPage() {
           </li>
           <li>
             <b>Step 2 — claim, free.</b> The on-chain gas station pays the claim fee and your wallet
-            never signs for it — claiming is free with any wallet. Everything else (transfer, vote,
-            propose) is <i>not</i> sponsored: your active wallet signs and pays ordinary gas.
+            never signs for it — claiming is free with any wallet. Everything else (transfers,
+            ranked-choice voting) is <i>not</i> sponsored: your active wallet signs and pays
+            ordinary gas. On-chain questions are admin-authored — suggest yours on the public
+            channels and the organization makes it official.
           </li>
           <li>
             <b>Everything is verifiable.</b> The deployed contracts byte-compare against the{' '}

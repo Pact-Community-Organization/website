@@ -5,7 +5,7 @@ import styles from '@/styles/token.module.css';
 import { CFG } from '@/lib/chain';
 import {
   loadOrCreateLocalKey, saveLocalKey, openRounds, alreadyClaimed, poolBalance, masterOpen,
-  balance, openProposals, myVote, claim, transfer, transferCrossChain, vote, propose,
+  balance, openProposals, myBallot, claim, transfer, transferCrossChain, vote,
   voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance, importLocalKey,
   type Round, type Proposal,
 } from '@/lib/pco';
@@ -30,13 +30,11 @@ export default function TokenApp() {
   const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [walletBal, setWalletBal] = useState(0);
   const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [myVotes, setMyVotes] = useState<Record<string, { choice: string; weight: number } | null>>({});
+  const [myBallots, setMyBallots] = useState<Record<string, { ranking: number[]; weight: number } | null>>({});
+  const [rankings, setRankings] = useState<Record<string, number[]>>({});   // in-progress ranking per question
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
   const [xchain, setXchain] = useState('');
-  const [pTitle, setPTitle] = useState('');
-  const [pBody, setPBody] = useState('');
-  const [pDays, setPDays] = useState('7');
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
   const [vkActive, setVkActive] = useState(false);
@@ -78,9 +76,9 @@ export default function TokenApp() {
       setWalletBal(await balance(w.account));
       setWalletKda(await kdaBalance(w.account));
       setVkActive(await voteKeyActive(w.account));
-      const mv: Record<string, { choice: string; weight: number } | null> = {};
-      for (const p of props) mv[p.pid] = await myVote(p.pid, w.account);
-      setMyVotes(mv);
+      const mv: Record<string, { ranking: number[]; weight: number } | null> = {};
+      for (const p of props) mv[p.pid] = await myBallot(p.pid, w.account);
+      setMyBallots(mv);
       const cold = localStorage.getItem('pco-votekey-cold') ?? '';
       setVkCold(cold && (await voteKeyActive(cold)) ? cold : '');
     } catch (e) {
@@ -150,19 +148,21 @@ export default function TokenApp() {
     setBusy(false); void refresh();
   };
 
-  const doVote = async (pid: string, choice: string) => {
+  const doVote = async (pid: string) => {
+    const ranking = rankings[pid] ?? [];
+    if (ranking.length === 0) return say('Build your ranking first — tap the options in order of preference.', 'err');
     if (voteMode === 'hotkey' && vkCold && key) {
       // the browser key is a registered VOTE KEY for the cold account: it signs
       // and pays its own gas; the cold wallet never comes out for voting
-      setBusy(true); say(`Casting ${choice} as ${vkCold.slice(0, 14)}… with the browser vote key…`);
-      try { await voteAs(connectLocalKey(key), vkCold, pid, choice); say(`Voted ${choice} as the cold account (vote key signed).`, 'ok'); }
-      catch (e) { say(`Vote-key vote failed: ${(e as Error).message}`, 'err'); }
+      setBusy(true); say(`Submitting the ranked ballot as ${vkCold.slice(0, 14)}… with the browser vote key…`);
+      try { await voteAs(connectLocalKey(key), vkCold, pid, ranking); say('Ballot submitted as the cold account (vote key signed).', 'ok'); }
+      catch (e) { say(`Vote-key ballot failed: ${(e as Error).message}`, 'err'); }
       setBusy(false); void refresh(); return;
     }
     if (!wallet) return say('Choose your wallet first (step 1) — voting is self-paid.', 'err');
-    setBusy(true); say(`Casting ${choice} on ${pid}…`);
-    try { await vote(wallet, pid, choice); say(`Voted ${choice} on ${pid}.`, 'ok'); }
-    catch (e) { say(`Vote failed: ${(e as Error).message}`, 'err'); }
+    setBusy(true); say(`Submitting your ranked ballot on question ${pid}…`);
+    try { await vote(wallet, pid, ranking); say(`Ballot submitted on question ${pid}.`, 'ok'); }
+    catch (e) { say(`Ballot failed: ${(e as Error).message}`, 'err'); }
     setBusy(false); void refresh();
   };
 
@@ -214,17 +214,6 @@ export default function TokenApp() {
     }
   };
 
-  const doPropose = async () => {
-    if (!wallet) return say('Choose your wallet first (step 1).', 'err');
-    if (!pTitle.trim() || !pBody.trim()) return say('Title and description are required.', 'err');
-    const days = Number(pDays);
-    if (!Number.isInteger(days) || days < 1 || days > 30) return say('Days open must be 1–30 (the contract bounds proposals to 24–720 hours).', 'err');
-    setBusy(true); say('Opening your advisory proposal…');
-    try { await propose(wallet, pTitle, pBody, days); say(`Proposal opened: "${pTitle}".`, 'ok'); setPTitle(''); setPBody(''); }
-    catch (e) { say(`Proposal failed: ${(e as Error).message}`, 'err'); }
-    setBusy(false); void refresh();
-  };
-
   const backup = () => {
     if (!key) return;
     const blob = new Blob([JSON.stringify(key, null, 2)], { type: 'application/json' });
@@ -247,7 +236,6 @@ export default function TokenApp() {
   };
 
   const round = selectedRound();
-  const canPropose = !!wallet && walletBal >= 1000;
 
   return (
     <div className={styles.app}>
@@ -393,9 +381,15 @@ export default function TokenApp() {
         </p>
       </section>
 
-      {/* ---- Proposals ---- */}
+      {/* ---- Open questions (ranked-choice) ---- */}
       <section className={styles.card}>
-        <h2>Open advisory proposals</h2>
+        <h2>Open questions — ranked-choice voting</h2>
+        <p className={styles.muted}>
+          Questions are put on-chain by the organization (suggest yours below). Tap the options
+          in your order of preference — first tap = first choice — then submit. Scores are live
+          Borda points (a ballot of K options gives its 1st choice K points per token, the 2nd
+          K−1, …). Re-submitting replaces your ballot. <a href="/token/guide#voting">How voting works →</a>
+        </p>
         {vkCold && (
           <p className={styles.muted}>
             Voting as:{' '}
@@ -405,22 +399,51 @@ export default function TokenApp() {
             </select>
           </p>
         )}
-        {proposals.length === 0 ? <p className={styles.muted}>No open proposals right now.</p> : proposals.map((p) => (
-          <div key={p.pid} className={styles.proposal}>
-            <h3>#{p.pid} — {p.title}</h3>
-            <p className={styles.muted}>
-              yes {p.yes.toLocaleString()} · no {p.no.toLocaleString()} · abstain {p.abstain.toLocaleString()}
-              {myVotes[p.pid] && <> — your vote: <b>{myVotes[p.pid]!.choice}</b> ({myVotes[p.pid]!.weight})</>}
-            </p>
-            <p>
-              {['yes', 'no', 'abstain'].map((ch) => (
-                <button key={ch} className={styles.btn}
-                  disabled={busy || (voteMode === 'hotkey' ? !vkCold : !wallet)}
-                  onClick={() => doVote(p.pid, ch)}>vote {ch}</button>
-              ))}
-            </p>
-          </div>
-        ))}
+        {proposals.length === 0 ? <p className={styles.muted}>No open questions right now.</p> : proposals.map((p) => {
+          const ranking = rankings[p.pid] ?? [];
+          const mine = myBallots[p.pid];
+          return (
+            <div key={p.pid} className={styles.proposal}>
+              <h3>#{p.pid} — {p.title}</h3>
+              <p className={styles.muted}>
+                {p.options.map((o, i) => `${o}: ${p.scores[i]?.toLocaleString() ?? 0} pts`).join(' · ')}
+                {' '}— turnout {p.turnout.toLocaleString()}
+                {mine && <> — your ballot: <b>{mine.ranking.map((i) => p.options[i]).join(' › ')}</b> ({mine.weight})</>}
+              </p>
+              <p>
+                {p.options.map((o, i) => (
+                  <button key={i} className={styles.btn}
+                    disabled={busy || ranking.includes(i)}
+                    onClick={() => setRankings({ ...rankings, [p.pid]: [...ranking, i] })}>
+                    {ranking.includes(i) ? `${ranking.indexOf(i) + 1}. ${o}` : o}
+                  </button>
+                ))}
+              </p>
+              <p>
+                {ranking.length > 0 && (
+                  <span className={styles.muted}>Your ranking: <b>{ranking.map((i) => p.options[i]).join(' › ')}</b>{' '}</span>
+                )}
+                <button className={styles.btn} disabled={busy || ranking.length === 0}
+                  onClick={() => setRankings({ ...rankings, [p.pid]: [] })}>clear</button>
+                <button className={styles.btn}
+                  disabled={busy || ranking.length === 0 || (voteMode === 'hotkey' ? !vkCold : !wallet)}
+                  onClick={() => doVote(p.pid)}>submit ballot</button>
+              </p>
+            </div>
+          );
+        })}
+      </section>
+
+      {/* ---- Suggest a question (off-chain -> the org makes it official) ---- */}
+      <section className={styles.card}>
+        <h2>Suggest a question</h2>
+        <p className={styles.muted}>
+          On-chain questions are <b>admin-authored</b>: the community suggests them on the public
+          channels and the organization puts them on-chain (this prevents anyone from squatting
+          the limited proposal slots — <a href="/token/guide#governance-design">why it works this way →</a>).
+          Suggest yours on <a href="https://t.me/PactCommunityOrg" target="_blank" rel="noopener noreferrer">Telegram</a> or{' '}
+          <a href="https://x.com/PactCommOrg" target="_blank" rel="noopener noreferrer">X</a>.
+        </p>
       </section>
 
       {/* ---- Rotate (named accounts) ---- */}
@@ -462,22 +485,6 @@ export default function TokenApp() {
             )}
           </>
         )}
-      </section>
-
-      {/* ---- Propose ---- */}
-      <section className={styles.card}>
-        <h2>Open a proposal</h2>
-        <p className={styles.muted}>
-          {!wallet ? 'Choose your wallet first (step 1).'
-            : canPropose ? 'Advisory only — proposals signal, they never execute. Up to three may be open community-wide.'
-              : `Opening a proposal needs 1,000 PCO (your wallet holds ${walletBal.toLocaleString()}).`}
-        </p>
-        <p><input placeholder="title" value={pTitle} maxLength={120} onChange={(e) => setPTitle(e.target.value)} style={{ width: '100%' }} /></p>
-        <p><input placeholder="what should the community weigh in on?" value={pBody} maxLength={500} onChange={(e) => setPBody(e.target.value)} style={{ width: '100%' }} /></p>
-        <p>
-          <input placeholder="days (1–30)" value={pDays} onChange={(e) => setPDays(e.target.value)} style={{ width: '6rem' }} />
-          <button className={styles.btn} disabled={busy || !canPropose} onClick={doPropose}>open proposal</button>
-        </p>
       </section>
 
       <p className={styles.muted}>network: <span className={styles.mono}>{CFG.networkId} · chain {CFG.chain} · {CFG.ns}</span></p>
