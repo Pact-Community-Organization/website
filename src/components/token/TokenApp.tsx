@@ -16,6 +16,9 @@ import {
 
 type Status = { msg: string; kind: 'info' | 'ok' | 'err' } | null;
 
+// ONE active wallet at a time drives the whole page: the claim destination,
+// balances, votes, transfers. The in-browser key is simply the default wallet
+// (zero setup), and switching to Ledger/Ecko/Zelcore REPLACES it everywhere.
 export default function TokenApp() {
   const [key, setKey] = useState<LocalAccount | null>(null);
   const [rounds, setRounds] = useState<Round[]>([]);
@@ -23,7 +26,6 @@ export default function TokenApp() {
   const [code, setCode] = useState('');
   const [pool, setPool] = useState(0);
   const [open, setOpen] = useState(false);
-  const [keyBal, setKeyBal] = useState(0);
   const [claimed, setClaimed] = useState(false);
   const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [walletBal, setWalletBal] = useState(0);
@@ -40,7 +42,6 @@ export default function TokenApp() {
   const [vkActive, setVkActive] = useState(false);
   const [vkCold, setVkCold] = useState('');          // cold account this browser's key votes for
   const [voteMode, setVoteMode] = useState<'wallet' | 'hotkey'>('wallet');
-  const [claimDest, setClaimDest] = useState<'browser' | 'wallet'>('browser');
   const [walletKda, setWalletKda] = useState(0);
   const [rotAccount, setRotAccount] = useState('');
   const [rotKey, setRotKey] = useState('');
@@ -52,73 +53,80 @@ export default function TokenApp() {
 
   const refresh = useCallback(async () => {
     try {
-      const k = key ?? loadOrCreateLocalKey();
-      if (!key) setKey(k);
-      const [op, pl, kb, rs, props] = await Promise.all([
-        masterOpen(), poolBalance(), balance(k.account), openRounds(), openProposals(),
+      let k = key;
+      let w = wallet;
+      if (!k) { k = loadOrCreateLocalKey(); setKey(k); }
+      // the DEFAULT active wallet is the in-browser key — one identity, always
+      if (!w) { w = connectLocalKey(k); setWallet(w); }
+      const [op, pl, rs, props] = await Promise.all([
+        masterOpen(), poolBalance(), openRounds(), openProposals(),
       ]);
-      setOpen(op); setPool(pl); setKeyBal(kb);
+      setOpen(op); setPool(pl);
       setRounds(op ? rs : []);
       setProposals(props);
       if (op && rs.length && !rs.some((r) => r.id === roundId)) setRoundId(rs[0].id);
       const sel = rs.find((r) => r.id === roundId) ?? rs[0];
-      // the claim destination is the connected wallet when chosen, else the browser key
-      const destAcct = claimDest === 'wallet' && wallet ? wallet.account : k.account;
-      setClaimed(sel ? await alreadyClaimed(sel.id, destAcct) : false);
-      if (wallet) {
-        setWalletBal(await balance(wallet.account));
-        setWalletKda(await kdaBalance(wallet.account));
-        setVkActive(await voteKeyActive(wallet.account));
-        const mv: Record<string, { choice: string; weight: number } | null> = {};
-        for (const p of props) mv[p.pid] = await myVote(p.pid, wallet.account);
-        setMyVotes(mv);
-      }
+      // everything follows the ONE active wallet
+      setClaimed(sel ? await alreadyClaimed(sel.id, w.account) : false);
+      setWalletBal(await balance(w.account));
+      setWalletKda(await kdaBalance(w.account));
+      setVkActive(await voteKeyActive(w.account));
+      const mv: Record<string, { choice: string; weight: number } | null> = {};
+      for (const p of props) mv[p.pid] = await myVote(p.pid, w.account);
+      setMyVotes(mv);
       const cold = localStorage.getItem('pco-votekey-cold') ?? '';
       setVkCold(cold && (await voteKeyActive(cold)) ? cold : '');
     } catch (e) {
       say(`Cannot reach devnet: ${(e as Error).message}`, 'err');
     }
-  }, [key, roundId, wallet, claimDest]);
+  }, [key, roundId, wallet]);
 
-  // refresh is re-created whenever key/roundId/wallet/claimDest change (its
-  // useCallback deps), so this effect re-runs with FRESH state — no manual
-  // refresh() calls in onChange handlers (they would run a stale closure).
+  // refresh is re-created whenever key/roundId/wallet change (its useCallback
+  // deps), so this effect re-runs with FRESH state — no manual refresh() calls
+  // in onChange handlers (they would run a stale closure).
   useEffect(() => { void refresh(); const t = setInterval(() => { void refresh(); }, 30000); return () => clearInterval(t); }, [refresh]);
 
   const selectedRound = () => rounds.find((r) => r.id === roundId) ?? rounds[0];
 
   const doClaim = async () => {
     const round = selectedRound(); const k = key!;
+    if (!wallet) return say('Choose your wallet first (step 1).', 'err');
     if (!round) return say('No open round right now.', 'err');
     if (!code.trim()) return say('Enter the engagement code first.', 'err');
-    // destination: the connected wallet when chosen (no wallet signature is
-    // needed — claims have no claimer signature by design), else the browser key
-    const dest = claimDest === 'wallet' && wallet
-      ? { account: wallet.account, publicKey: wallet.publicKey }
-      : { account: k.account, publicKey: k.publicKey };
-    setBusy(true); say(`Claiming "${round.id}" to ${dest.account.slice(0, 14)}… (the gas station pays the fee)…`);
-    try { await claim(round, dest, k, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}…!`, 'ok'); setCode(''); }
+    // destination = THE active wallet. No wallet signature is needed — claims
+    // have no claimer signature by design; the browser key only signs the
+    // station's GAS_PAYER capability.
+    const dest = { account: wallet.account, publicKey: wallet.publicKey };
+    setBusy(true); say(`Claiming "${round.id}" to your ${wallet.label} account (the gas station pays the fee)…`);
+    try { await claim(round, dest, k, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}… (${wallet.label})!`, 'ok'); setCode(''); }
     catch (e) { say(`Claim failed: ${(e as Error).message}`, 'err'); }
     setBusy(false); void refresh();
   };
 
+  // Switching wallets REPLACES the active identity everywhere — never two at
+  // once. A failed or ended external session falls back to the in-browser key.
+  const fallback = () => connectLocalKey(key ?? loadOrCreateLocalKey());
   const connect = async (kind: 'ecko' | 'zelcore' | 'ledger' | 'localkey') => {
     say(`Connecting ${kind}…`);
+    wallet?.disconnect?.();
     try {
       let w: ConnectedWallet;
-      if (kind === 'ecko') w = await connectEcko((reason) => { setWallet(null); say(reason, 'err'); });
+      if (kind === 'ecko') w = await connectEcko((reason) => { setWallet(fallback()); say(`${reason} — switched back to the in-browser key`, 'err'); });
       else if (kind === 'zelcore') w = await connectZelcore();
       else if (kind === 'ledger') w = await connectLedger();
-      else w = connectLocalKey(key ?? loadOrCreateLocalKey());
-      setWallet(w); say(`Connected: ${w.label} · ${w.account.slice(0, 16)}…`, 'ok'); void refresh();
-    } catch (e) { say((e as Error).message, 'err'); }
+      else w = fallback();
+      setWallet(w); say(`Active wallet: ${w.label} · ${w.account.slice(0, 16)}…`, 'ok');
+    } catch (e) {
+      setWallet(fallback());
+      say(`${(e as Error).message}`, 'err');
+    }
   };
 
   const AMOUNT_RE = /^\d+(\.\d{1,12})?$/;
   const validTo = /^k:[0-9a-f]{64}$/.test(to);
 
   const doTransfer = async (direction: 'same' | 'x') => {
-    if (!wallet) return say('Connect a wallet first.', 'err');
+    if (!wallet) return say('Choose your wallet first (step 1).', 'err');
     if (!validTo) return say('Recipient must be a k: account (k: + 64 hex).', 'err');
     if (!AMOUNT_RE.test(amount) || Number(amount) <= 0) return say('Amount must be a positive number.', 'err');
     const amt = amount.includes('.') ? amount : `${amount}.0`;
@@ -141,7 +149,7 @@ export default function TokenApp() {
       catch (e) { say(`Vote-key vote failed: ${(e as Error).message}`, 'err'); }
       setBusy(false); void refresh(); return;
     }
-    if (!wallet) return say('Connect a wallet to vote (you pay your own gas).', 'err');
+    if (!wallet) return say('Choose your wallet first (step 1) — voting is self-paid.', 'err');
     setBusy(true); say(`Casting ${choice} on ${pid}…`);
     try { await vote(wallet, pid, choice); say(`Voted ${choice} on ${pid}.`, 'ok'); }
     catch (e) { say(`Vote failed: ${(e as Error).message}`, 'err'); }
@@ -170,7 +178,7 @@ export default function TokenApp() {
   };
 
   const doRotate = async () => {
-    if (!wallet) return say('Connect a wallet first.', 'err');
+    if (!wallet) return say('Choose your wallet first (step 1).', 'err');
     const acct = rotAccount.trim() || wallet.account;
     if (acct.startsWith('k:')) {
       return say('k: (principal) accounts cannot rotate — the protocol fixes their guard to their key. Rotation applies to NAMED accounts whose current guard your wallet satisfies.', 'err');
@@ -190,7 +198,7 @@ export default function TokenApp() {
   };
 
   const doPropose = async () => {
-    if (!wallet) return say('Connect a wallet to propose.', 'err');
+    if (!wallet) return say('Choose your wallet first (step 1).', 'err');
     if (!pTitle.trim() || !pBody.trim()) return say('Title and description are required.', 'err');
     const days = Number(pDays);
     if (!Number.isInteger(days) || days < 3 || days > 30) return say('Days open must be 3–30.', 'err');
@@ -228,23 +236,76 @@ export default function TokenApp() {
     <div className={styles.app}>
       {status && <div className={`${styles.status} ${styles[status.kind]}`}>{status.msg}</div>}
 
-      {/* ---- 1. Claim (no wallet, gasless) ---- */}
+      {/* ---- 1. Choose your wallet (ONE active identity for the whole page) ---- */}
       <section className={styles.card}>
-        <h2>1 · Claim — no wallet, no fee</h2>
+        <h2>1 · Choose your wallet</h2>
         <p className={styles.muted}>
-          A key is generated in this browser and the on-chain gas station pays the fee, so claiming
-          needs <b>no wallet and no KDA</b>. This is the only action the station sponsors.
+          Everything on this page — claiming, balances, votes, transfers — uses <b>one active
+          wallet</b>. The in-browser key needs no setup (perfect for a first claim); switch to your
+          own wallet at any time and the page follows it.
         </p>
-        <p className={styles.mono}>{key?.account ?? '…'}</p>
+        <p className={styles.walletButtons}>
+          <button className={styles.btn} disabled={wallet?.kind === 'localkey'} onClick={() => connect('localkey')}>
+            in-browser key{wallet?.kind === 'localkey' && ' ✓'}
+          </button>
+          <button className={styles.btn} disabled={!eckoAvailable() || wallet?.kind === 'ecko'} onClick={() => connect('ecko')}>
+            EckoWallet{!eckoAvailable() ? ' (not detected)' : wallet?.kind === 'ecko' ? ' ✓' : ''}
+          </button>
+          <button className={styles.btn} disabled={wallet?.kind === 'zelcore'} onClick={() => connect('zelcore')}>
+            Zelcore{wallet?.kind === 'zelcore' && ' ✓'}
+          </button>
+          <button className={styles.btn} disabled={wallet?.kind === 'ledger'} onClick={() => connect('ledger')}>
+            Ledger{wallet?.kind === 'ledger' && ' ✓'}
+          </button>
+        </p>
+        {wallet && (
+          <>
+            <p>
+              Active wallet: <b>{wallet.label}</b>
+              <button className={styles.btn} onClick={() => { navigator.clipboard?.writeText(wallet.account).then(() => say('Address copied.', 'ok')).catch(() => say(wallet.account)); }}>copy address</button>
+            </p>
+            <p className={styles.mono}>{wallet.account}</p>
+            <p>
+              Holds: <b>{walletBal.toLocaleString()} PCO</b> · <b>{walletKda.toLocaleString(undefined, { maximumFractionDigits: 4 })} KDA</b>
+              {walletKda < 0.05 && <span className={styles.muted}> — self-paid actions (transfer/vote/propose) need a little KDA; claiming does not</span>}
+            </p>
+            {wallet.kind === 'localkey' && (
+              <p className={styles.muted}>
+                <b>This key lives only in this browser.</b> Keep the backup — clearing storage deletes it.
+                <button className={styles.btn} onClick={backup}>download key backup</button>
+                <button className={styles.btn} onClick={restore}>restore from backup</button>
+                <input ref={fileRef} type="file" accept="application/json" hidden onChange={onRestore} />
+              </p>
+            )}
+            {wallet.kind !== 'localkey' && (
+              <>
+                <hr />
+                <h3>Voting key {vkActive ? '— active' : '— none registered'}</h3>
+                <p className={styles.muted}>
+                  Register this browser&apos;s key as a dedicated <b>vote key</b> for this account: it
+                  can then vote on your behalf while your {wallet.label} stays cold. The vote key can{' '}
+                  <b>only vote</b> — it can never transfer, rotate, or re-point itself, and your main
+                  wallet always keeps its own voting power. <a href="/token/guide#voting-key">How this works →</a>
+                </p>
+                <p>
+                  {!vkActive
+                    ? <button className={styles.btn} disabled={busy} onClick={doRegisterVoteKey}>register browser key as vote key</button>
+                    : <button className={styles.btn} disabled={busy} onClick={doClearVoteKey}>clear vote key</button>}
+                </p>
+              </>
+            )}
+          </>
+        )}
+      </section>
+
+      {/* ---- 2. Claim — to the active wallet, gasless ---- */}
+      <section className={styles.card}>
+        <h2>2 · Claim — {open ? (rounds.length ? `${rounds.length} open round${rounds.length > 1 ? 's' : ''}` : 'no open rounds') : 'CLOSED'}</h2>
         <p className={styles.muted}>
-          <b>This key lives only in this browser.</b> Keep the backup — clearing storage deletes it.
-          <button className={styles.btn} onClick={backup}>download key backup</button>
-          <button className={styles.btn} onClick={restore}>restore from backup</button>
-          <input ref={fileRef} type="file" accept="application/json" hidden onChange={onRestore} />
+          Claims land in your <b>active wallet</b> ({wallet ? `${wallet.label} · ${wallet.account.slice(0, 14)}…` : '…'}).
+          The gas station pays the fee and your wallet never signs — claiming is free, with any wallet.
+          The station sponsors <b>only</b> claims; everything else is self-paid.
         </p>
-        <p>This browser key holds: <b>{keyBal.toLocaleString()} PCO</b></p>
-        <hr />
-        <h3>Claim — {open ? (rounds.length ? `${rounds.length} open round${rounds.length > 1 ? 's' : ''}` : 'no open rounds') : 'CLOSED'}</h3>
         <p className={styles.muted}>{pool.toLocaleString()} PCO left in the pool</p>
         <p className={styles.muted}>Pick a round and answer its community quest (published on the PCO channels with its round id):</p>
         <p>
@@ -252,16 +313,6 @@ export default function TokenApp() {
             {rounds.map((r) => <option key={r.id} value={r.id}>{r.id} — {r.amount} PCO (until {r.closes.slice(0, 10)})</option>)}
           </select>
         </p>
-        {wallet && (
-          <p className={styles.muted}>
-            Claim to:{' '}
-            <select value={claimDest} onChange={(e) => setClaimDest(e.target.value as 'browser' | 'wallet')}>
-              <option value="browser">this browser&apos;s key</option>
-              <option value="wallet">connected wallet ({wallet.label} · {wallet.account.slice(0, 14)}…)</option>
-            </select>
-            {' '}— your wallet does not need to sign; the station pays either way.
-          </p>
-        )}
         <p>
           <input placeholder="engagement code" value={code} onChange={(e) => setCode(e.target.value)} />
           <button className={styles.btn} disabled={busy || !open || !round || claimed} onClick={doClaim}>
@@ -270,59 +321,11 @@ export default function TokenApp() {
         </p>
         {claimed && (
           <p className={styles.muted}>
-            {claimDest === 'wallet' && wallet ? 'The connected wallet' : 'This browser key'} already
-            claimed round &quot;{round?.id}&quot; (one claim per account per round — it holds those
-            tokens). {rounds.length > 1 && 'Other open rounds are still claimable, '}
-            {wallet && claimDest === 'browser' ? 'or switch the destination to your connected wallet above.'
-              : !wallet ? 'or connect a wallet and claim to that account instead.' : ''}
+            Your active wallet ({wallet?.account.slice(0, 14)}…) already claimed round
+            &quot;{round?.id}&quot; — one claim per account per round; it holds those tokens.
+            {rounds.length > 1 && ' Other open rounds are still claimable.'}
+            {' '}Switching the active wallet (step 1) switches who claims.
           </p>
-        )}
-      </section>
-
-      {/* ---- 2. Do more — connect a wallet ---- */}
-      <section className={styles.card}>
-        <h2>2 · Do more — connect a wallet</h2>
-        <p className={styles.muted}>
-          Transferring, voting, and proposing are <b>not gas-sponsored</b> (only claiming is). Connect
-          a wallet holding a little devnet KDA — it signs and pays. On this preview, the simplest is
-          the <b>in-browser test key</b> (fund it from the devnet faucet or the seed script).
-        </p>
-        {!wallet ? (
-          <p className={styles.walletButtons}>
-            <button className={styles.btn} onClick={() => connect('localkey')}>use in-browser key</button>
-            <button className={styles.btn} disabled={!eckoAvailable()} onClick={() => connect('ecko')}>
-              EckoWallet{!eckoAvailable() && ' (not detected)'}
-            </button>
-            <button className={styles.btn} onClick={() => connect('zelcore')}>Zelcore</button>
-            <button className={styles.btn} onClick={() => connect('ledger')}>Ledger</button>
-          </p>
-        ) : (
-          <>
-            <p>
-              Connected: <b>{wallet.label}</b>
-              <button className={styles.btn} onClick={() => { navigator.clipboard?.writeText(wallet.account).then(() => say('Address copied.', 'ok')).catch(() => say(wallet.account)); }}>copy address</button>
-              <button className={styles.btn} onClick={() => { wallet.disconnect?.(); setWallet(null); setClaimDest('browser'); say('Wallet disconnected.'); }}>disconnect</button>
-            </p>
-            <p className={styles.mono}>{wallet.account}</p>
-            <p>
-              Wallet holds: <b>{walletBal.toLocaleString()} PCO</b> · <b>{walletKda.toLocaleString(undefined, { maximumFractionDigits: 4 })} KDA</b>
-              {walletKda < 0.05 && <span className={styles.muted}> — needs a little KDA for self-paid actions (see the guide / fund helper)</span>}
-            </p>
-            <hr />
-            <h3>Voting key {vkActive ? '— active' : '— none registered'}</h3>
-            <p className={styles.muted}>
-              Register this browser&apos;s key as a dedicated <b>vote key</b> for your account: it can
-              then vote on your behalf while your main wallet stays cold. The vote key can <b>only
-              vote</b> — it can never transfer, rotate, or re-point itself. Your main wallet always
-              keeps its own voting power and can clear the key at any time.{' '}
-              <a href="/token/guide#voting-key">How this works →</a>
-            </p>
-            <p>
-              {!vkActive
-                ? <button className={styles.btn} disabled={busy} onClick={doRegisterVoteKey}>register browser key as vote key</button>
-                : <button className={styles.btn} disabled={busy} onClick={doClearVoteKey}>clear vote key</button>}
-            </p>
-          </>
         )}
       </section>
 
@@ -348,7 +351,7 @@ export default function TokenApp() {
           <p className={styles.muted}>
             Voting as:{' '}
             <select value={voteMode} onChange={(e) => setVoteMode(e.target.value as 'wallet' | 'hotkey')}>
-              <option value="wallet">connected wallet{wallet ? ` (${wallet.account.slice(0, 14)}…)` : ''}</option>
+              <option value="wallet">active wallet{wallet ? ` (${wallet.account.slice(0, 14)}…)` : ''}</option>
               <option value="hotkey">{vkCold.slice(0, 14)}… via this browser&apos;s vote key</option>
             </select>
           </p>
@@ -375,7 +378,7 @@ export default function TokenApp() {
       <section className={styles.card}>
         <h2>Rotate an account guard</h2>
         <p className={styles.muted}>
-          Point a <b>named</b> PCO account at a new key (your connected wallet must satisfy its
+          Point a <b>named</b> PCO account at a new key (your active wallet must satisfy its
           current guard). Protocol note: <b>k: accounts cannot rotate</b> — their guard is
           permanently bound to their key. <a href="/token/guide#rotate">Details →</a>
         </p>
@@ -401,7 +404,7 @@ export default function TokenApp() {
       <section className={styles.card}>
         <h2>Open a proposal</h2>
         <p className={styles.muted}>
-          {!wallet ? 'Connect a wallet to open a proposal (you pay your own gas).'
+          {!wallet ? 'Choose your wallet first (step 1).'
             : canPropose ? 'Advisory only — proposals signal, they never execute. Up to three may be open community-wide.'
               : `Opening a proposal needs 1,000 PCO (your wallet holds ${walletBal.toLocaleString()}).`}
         </p>

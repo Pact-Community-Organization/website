@@ -31,15 +31,15 @@ export default function TokenPage() {
         <h2>How to use this page</h2>
         <ul>
           <li>
-            <b>Claim (no wallet, no fee).</b> A key is created in your browser and an on-chain gas
-            station pays the transaction fee — so claiming needs no wallet and no KDA. Pick the open
-            round, answer its quest, and claim.
+            <b>Step 1 — choose your wallet.</b> One active wallet drives everything on the page:
+            claims land there, balances show for it, votes and transfers come from it. The in-browser
+            key needs zero setup (perfect for a first claim); or pick EckoWallet, Zelcore, or a
+            Ledger. Never two identities at once — switching wallets switches everything.
           </li>
           <li>
-            <b>Do more (connect a wallet).</b> Transferring, voting, and proposing are <i>not</i>
-            gas-sponsored — only claiming is. To do them you connect a Kadena wallet holding a little
-            KDA (it signs and pays). On this preview the in-browser test key is the easiest way; on
-            mainnet you would use EckoWallet, Zelcore, or a Ledger.
+            <b>Step 2 — claim, free.</b> The on-chain gas station pays the claim fee and your wallet
+            never signs for it — claiming is free with any wallet. Everything else (transfer, vote,
+            propose) is <i>not</i> sponsored: your active wallet signs and pays ordinary gas.
           </li>
           <li>
             <b>Everything is verifiable.</b> The deployed contracts byte-compare against the{' '}
