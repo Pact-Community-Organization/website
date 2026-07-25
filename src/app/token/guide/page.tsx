@@ -33,34 +33,36 @@ export default function TokenGuide() {
           require the organization&apos;s hardware-held keysets.
         </p>
 
-        <h2>1 · Claiming — free, no wallet, no fee</h2>
+        <h2>1 · Choose your wallet — one active identity</h2>
         <p>
-          Claiming is the one action whose gas is <b>sponsored</b> by the on-chain gas station, so a
-          complete newcomer with no KDA and no wallet can receive their first tokens.
+          The <Link href="/token">token page</Link> uses <b>one active wallet at a time</b>: claims
+          land there, balances show for it, votes and transfers come from it. Never two identities
+          at once — switching wallets switches everything. Four options:
         </p>
         <ul>
-          <li>Open the <Link href="/token">token page</Link>. A fresh keypair is generated <b>inside your browser</b> (it never leaves it).</li>
-          <li><b>Download the key backup</b> — the key lives only in that browser&apos;s storage; clearing site data deletes it, and the backup file is the only way to restore it.</li>
+          <li><b>In-browser key</b> — a keypair generated inside your browser (the default). Zero setup, perfect for a first claim. <b>Download the key backup</b> — the key lives only in that browser&apos;s storage; clearing site data deletes it.</li>
+          <li><b>EckoWallet</b> — browser extension. Must be on the site&apos;s network (see below).</li>
+          <li><b>Zelcore</b> — desktop app. Log in first; the site talks to its local signing API.</li>
+          <li><b>Ledger</b> — hardware, via WebHID (Chrome/Edge/Brave; Kadena app open, hash signing enabled).</li>
+        </ul>
+
+        <h2>2 · Claim — free, with any wallet</h2>
+        <p>
+          Claiming is the one action whose gas is <b>sponsored</b> by the on-chain gas station — and
+          your wallet never signs for it (claims need no signature from the claimer; tokens can only
+          land in the account bound to the supplied guard). Even a Ledger claim needs no device
+          interaction.
+        </p>
+        <ul>
           <li>Pick the open claim round and answer its quest. Quests are published on the PCO channels together with the round id; the answer, normalized to lowercase, is the claim code.</li>
-          <li>Claim. The gas station pays the fee; tokens land in the account bound to your browser key.</li>
+          <li>Claim. The gas station pays the fee; tokens land in your <b>active wallet&apos;s</b> account.</li>
         </ul>
         <p>
           On-chain rules that keep this fair: <b>one claim per account per round</b>, a fixed budget
           per round, and a time window — when a round&apos;s budget is exhausted or its window
-          closes, the round is over.
+          closes, the round is over. Everything beyond claiming is <b>self-paid</b>: your active
+          wallet signs and pays a little KDA gas.
         </p>
-
-        <h2>2 · Wallets — the four ways to sign</h2>
-        <p>
-          Everything beyond claiming is <b>self-paid</b>: you sign with a wallet that holds a little
-          KDA for gas. The token page supports four options:
-        </p>
-        <ul>
-          <li><b>In-browser test key</b> — the same key that claimed. Simplest; fund its <span className={styles.mono}>k:</span> account with a little KDA to act.</li>
-          <li><b>EckoWallet</b> — browser extension. The wallet must be on the site&apos;s network (see below).</li>
-          <li><b>Zelcore</b> — desktop app. Log in first; the site talks to its local signing API.</li>
-          <li><b>Ledger</b> — hardware, via WebHID (Chrome/Edge/Brave; hash signing enabled on-device).</li>
-        </ul>
         <p>
           <b>EckoWallet network setup (devnet preview):</b> this preview build points at a local
           development network. In EckoWallet: <i>Settings → Networks → add</i> — Name{' '}
