@@ -1,9 +1,12 @@
 # PCO token — DEVNET PREVIEW (branch `devnet-token-preview`)
 
-This branch adds the **PCO token page** to the website, wired to a **local devnet** so you can
-click through and simulate everything before mainnet. It is a PREVIEW: it points at
-`recap-development` on `localhost:8090`, carries a site-wide DEVNET banner, and must **never be
-merged to `main` or deployed** (main stays token-free until launch).
+This adds the **PCO token page** to the website, wired to a **local devnet** so the whole flow
+can be simulated before mainnet. It points at `recap-development` on `localhost:8090` and carries
+a site-wide DEVNET banner. **Founder decision 2026-07-25: this preview DEPLOYS to production**
+(pact-community.org) as a publicly visible devnet preview — visitors without a local devnet see a
+graceful "cannot reach devnet" state; the founder tests the full production wiring from a machine
+running the devnet. The launch build later flips `CFG` in `src/lib/chain.ts` to mainnet and drops
+the DEVNET banner.
 
 ## What's on it
 
