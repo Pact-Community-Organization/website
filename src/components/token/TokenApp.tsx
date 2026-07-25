@@ -218,7 +218,7 @@ export default function TokenApp() {
     if (!wallet) return say('Choose your wallet first (step 1).', 'err');
     if (!pTitle.trim() || !pBody.trim()) return say('Title and description are required.', 'err');
     const days = Number(pDays);
-    if (!Number.isInteger(days) || days < 3 || days > 30) return say('Days open must be 3–30.', 'err');
+    if (!Number.isInteger(days) || days < 1 || days > 30) return say('Days open must be 1–30 (the contract bounds proposals to 24–720 hours).', 'err');
     setBusy(true); say('Opening your advisory proposal…');
     try { await propose(wallet, pTitle, pBody, days); say(`Proposal opened: "${pTitle}".`, 'ok'); setPTitle(''); setPBody(''); }
     catch (e) { say(`Proposal failed: ${(e as Error).message}`, 'err'); }
@@ -475,7 +475,7 @@ export default function TokenApp() {
         <p><input placeholder="title" value={pTitle} maxLength={120} onChange={(e) => setPTitle(e.target.value)} style={{ width: '100%' }} /></p>
         <p><input placeholder="what should the community weigh in on?" value={pBody} maxLength={500} onChange={(e) => setPBody(e.target.value)} style={{ width: '100%' }} /></p>
         <p>
-          <input placeholder="days (3–30)" value={pDays} onChange={(e) => setPDays(e.target.value)} style={{ width: '6rem' }} />
+          <input placeholder="days (1–30)" value={pDays} onChange={(e) => setPDays(e.target.value)} style={{ width: '6rem' }} />
           <button className={styles.btn} disabled={busy || !canPropose} onClick={doPropose}>open proposal</button>
         </p>
       </section>
