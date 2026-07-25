@@ -1,0 +1,32 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: var(--max-width, 1100px);
+  margin: 1.5rem auto 0;
+  padding: 0.9rem 1.4rem;
+  border: 1px solid var(--primary, #A393FF);
+  border-radius: var(--border-radius, 12px);
+  background: linear-gradient(90deg, rgba(163, 147, 255, 0.12), rgba(255, 77, 227, 0.1));
+  color: var(--text-primary, #fff);
+  text-decoration: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.banner:hover {
+  border-color: var(--secondary, #FF4DE3);
+  background: linear-gradient(90deg, rgba(163, 147, 255, 0.2), rgba(255, 77, 227, 0.16));
+}
+.badge {
+  background: var(--secondary, #FF4DE3);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+.text { color: var(--text-secondary, #BFBFBF); }
+.text b { color: var(--text-primary, #fff); }
+.cta { color: var(--primary, #A393FF); font-weight: 600; white-space: nowrap; }
