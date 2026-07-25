@@ -58,17 +58,25 @@ export async function myVote(pid: string, account: string): Promise<{ choice: st
   return { choice: String(r.choice), weight: dec(r.weight) };
 }
 
-// ---------- claim (GASLESS, station-sponsored, local key) ----------
-export async function claim(round: Round, key: LocalAccount, code: string): Promise<Record<string, unknown>> {
+// ---------- claim (GASLESS, station-sponsored) ----------
+// dest may be the browser key OR any k: account (e.g. the connected wallet):
+// claims need NO signature from the claimer by design — tokens can only land
+// in the account canonically bound to the supplied guard. The browser key
+// signs only the station's GAS_PAYER capability.
+export async function claim(round: Round, dest: { account: string; publicKey: string }, signer: LocalAccount, code: string): Promise<Record<string, unknown>> {
   const station = await stationAccount();
   const { cmd, hash } = buildExec({
-    code: `(${C}.claim "${round.id}" "${key.account}" (read-keyset 'ks) "${code}")`,
-    data: { ks: { keys: [key.publicKey], pred: 'keys-all' } },
+    code: `(${C}.claim "${round.id}" "${dest.account}" (read-keyset 'ks) "${code}")`,
+    data: { ks: { keys: [dest.publicKey], pred: 'keys-all' } },
     sender: station,
-    signers: [{ pubKey: key.publicKey, caps: [{ name: `${G}.GAS_PAYER`, args: ['web', { int: 6000 }, { decimal: '0.0000001' }] }] }],
+    signers: [{ pubKey: signer.publicKey, caps: [{ name: `${G}.GAS_PAYER`, args: ['web', { int: 6000 }, { decimal: '0.0000001' }] }] }],
     gasLimit: 6000, gasPrice: 1e-8,
   });
-  return submitAndPoll({ cmd, hash, sigs: [{ sig: signHash(hash, key.secretKey) }] });
+  return submitAndPoll({ cmd, hash, sigs: [{ sig: signHash(hash, signer.secretKey) }] });
+}
+
+export async function kdaBalance(account: string): Promise<number> {
+  return dec(await local(`(coin.get-balance "${account}")`).catch(() => 0)) || 0;
 }
 
 // ---------- self-paid actions (connected wallet pays its own gas) ----------
