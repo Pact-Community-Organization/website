@@ -41,21 +41,28 @@ export async function openRounds(): Promise<Round[]> {
 export async function alreadyClaimed(roundId: string, account: string): Promise<boolean> {
   return Boolean(await local(`(${C}.claimed "${roundId}" "${account}")`));
 }
-export type Proposal = { pid: string; title: string; yes: number; no: number; abstain: number };
+// Ranked-choice questions: options + live Borda scores (a ballot ranking
+// option i at position p contributes weight*(K-p) points).
+export type Proposal = { pid: string; title: string; options: string[]; scores: number[]; turnout: number };
 export async function openProposals(): Promise<Proposal[]> {
   const ids = (await local(`(${T}.open-ids)`)) as string[];
   const out: Proposal[] = [];
   for (const pid of ids) {
     const r = (await local(`(${T}.get-results "${pid}")`)) as Record<string, unknown>;
-    out.push({ pid, title: String(r.title ?? ''), yes: dec(r.yes), no: dec(r.no), abstain: dec(r.abstain) });
+    out.push({
+      pid, title: String(r.title ?? ''),
+      options: (r.options as string[]) ?? [],
+      scores: ((r.scores as unknown[]) ?? []).map(dec),
+      turnout: dec(r.turnout),
+    });
   }
   return out;
 }
-export async function myVote(pid: string, account: string): Promise<{ choice: string; weight: number } | null> {
-  const v = await local(`(${T}.get-vote "${pid}" "${account}")`).catch(() => null);
+export async function myBallot(pid: string, account: string): Promise<{ ranking: number[]; weight: number } | null> {
+  const v = await local(`(${T}.get-ballot "${pid}" "${account}")`).catch(() => null);
   if (!v) return null;
   const r = v as Record<string, unknown>;
-  return { choice: String(r.choice), weight: dec(r.weight) };
+  return { ranking: ((r.ranking as unknown[]) ?? []).map(dec), weight: dec(r.weight) };
 }
 
 // ---------- claim (GASLESS, station-sponsored) ----------
@@ -103,13 +110,14 @@ export function transferCrossChain(w: ConnectedWallet, to: string, targetChain: 
     [{ name: `${T}.TRANSFER_XCHAIN`, args: [w.account, to, { decimal: amount }, targetChain] }],
     { rg: { keys: [to.slice(2)], pred: 'keys-all' } });
 }
-export function vote(w: ConnectedWallet, pid: string, choice: string) {
-  return selfPaid(w, `(${T}.cast-vote "${pid}" "${w.account}" "${choice}")`, [{ name: `${T}.VOTE`, args: [pid, w.account] }]);
+const rankStr = (ranking: number[]) => `[${ranking.join(' ')}]`;
+export function vote(w: ConnectedWallet, pid: string, ranking: number[]) {
+  return selfPaid(w, `(${T}.cast-vote "${pid}" "${w.account}" ${rankStr(ranking)})`, [{ name: `${T}.VOTE`, args: [pid, w.account] }], undefined);
 }
-// Cast a vote FOR another account (the cold one) signed by its registered vote
-// key — the signer w is the HOT key and pays its own gas.
-export function voteAs(w: ConnectedWallet, coldAccount: string, pid: string, choice: string) {
-  return selfPaid(w, `(${T}.cast-vote "${pid}" "${coldAccount}" "${choice}")`, [{ name: `${T}.VOTE`, args: [pid, coldAccount] }]);
+// Cast a ballot FOR another account (the cold one) signed by its registered
+// vote key — the signer w is the HOT key and pays its own gas.
+export function voteAs(w: ConnectedWallet, coldAccount: string, pid: string, ranking: number[]) {
+  return selfPaid(w, `(${T}.cast-vote "${pid}" "${coldAccount}" ${rankStr(ranking)})`, [{ name: `${T}.VOTE`, args: [pid, coldAccount] }], undefined);
 }
 // Register/replace the account's dedicated vote key (MAIN wallet signs, scoped
 // to VOTE-KEY-ADMIN). The hot key can then ONLY vote — nothing else.
@@ -148,10 +156,6 @@ export async function lookupAllChains(account: string): Promise<{ total: number;
   })));
   const perChain = balances.filter((b) => b.balance > 0);
   return { total: perChain.reduce((s, b) => s + b.balance, 0), perChain };
-}
-export function propose(w: ConnectedWallet, title: string, body: string, days: number) {
-  const clean = (s: string) => s.replace(/["\\]/g, '');
-  return selfPaid(w, `(${T}.create-proposal "${w.account}" "${clean(title)}" "${clean(body)}" ${days * 24})`, [{ name: `${T}.PROPOSE`, args: [w.account] }]);
 }
 
 // ---------- in-browser test key (localStorage; the gasless-claim identity) ----------

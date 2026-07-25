@@ -85,12 +85,23 @@ export default function TokenGuide() {
           <li><b>Cross-chain:</b> PCO lives on all 20 Kadena chains; governance lives on chain 0 (the hub). A cross-chain send debits the source chain and, after the SPV proof settles, credits the target chain — the continuation is finished automatically.</li>
         </ul>
 
-        <h2>5 · Governance — advisory voting</h2>
+        <h2 id="voting">5 · Governance — ranked-choice voting on admin-authored questions</h2>
         <ul>
-          <li>Voting weight is your <b>current hub-chain balance</b> at the moment you vote; re-voting replaces your previous vote in place.</li>
-          <li>Every balance decrease (transfer out, cross-chain send) automatically releases the moved weight from your open votes — tokens that left can never keep voting. Received tokens arrive unvoted.</li>
-          <li>Anyone holding <b>1,000 PCO</b> may open a proposal (at most 3 open community-wide). Proposals are pure signals: <b>no vote executes anything on-chain</b>. There is no quorum; tallies and distinct-voter counts are public chain state.</li>
+          <li><b>Questions come from the organization; answers come from you.</b> Each on-chain question carries 2–5 named options. The community <b>suggests questions on the public channels</b> (Telegram / X) and the organization puts them on-chain — an accountable public step.</li>
+          <li><b>You vote by ranking the options</b> in order of preference (a partial ranking is fine). Tallies are live <b>Borda scores</b>: with K options, your first choice earns K points per token, the second K−1, and so on. The leading score is the community&apos;s preference; there is no quorum and <b>no vote executes anything on-chain</b>.</li>
+          <li>Voting weight is your <b>current hub-chain balance</b>; re-submitting replaces your ballot, and every balance decrease automatically shrinks your open ballots. Received tokens arrive unvoted.</li>
+          <li>The organization can close a question early only with a <b>public on-chain reason</b>.</li>
         </ul>
+        <h2 id="governance-design">Why can&apos;t holders create proposals directly?</h2>
+        <p>
+          With a small global cap on open questions (which bounds gas on every transfer), open
+          proposing is squattable: one threshold-sized bankroll hopping between fresh accounts can
+          fill every slot forever, and defending that requires stake locks plus admin
+          cancel/seizure backstops — at which point admin involvement is structural anyway. v1
+          takes honest control of question authorship instead, keeps voting and suggesting fully
+          open, and preserves the complete open-proposing design for a future version. Full
+          analysis: <a href={`${REPO}/blob/main/docs/GOVERNANCE-DESIGN.md`}>GOVERNANCE-DESIGN.md</a>.
+        </p>
 
         <h2 id="voting-key">6 · The voting key — vote hot, keep your wallet cold</h2>
         <p>

@@ -60,16 +60,29 @@ Network ID `recap-development` — save it and select it as the active network, 
   credits the target chain. The token page starts the transfer; the continuation on the target
   chain is finished automatically (Kadena's public cross-chain gas station pays that leg).
 
-## 5. Governance — advisory voting
+## 5. Governance — ranked-choice voting on admin-authored questions {#voting}
 
-- Voting weight is your **current hub-chain balance** at the moment you vote. Re-voting replaces
-  your previous vote in place.
-- Every balance decrease (transfer out, cross-chain send) automatically releases the moved
-  weight from your open votes — tokens that left can never keep voting. Received tokens arrive
-  unvoted.
-- Anyone holding **1,000 PCO** may open a proposal (at most 3 open community-wide). Proposals
-  are pure signals: **no vote executes anything on-chain.** There is no quorum; readers judge
-  turnout honestly — the tallies and distinct-voter counts are public chain state.
+- **Questions come from the organization; answers come from you.** Each on-chain question
+  carries 2–5 named options. The community **suggests questions on the public channels**
+  (Telegram / X) and the organization puts them on-chain — an accountable public step.
+- **You vote by ranking the options** in order of preference (a partial ranking is fine).
+  Tallies are live **Borda scores**: with K options, your first choice earns K points per token,
+  the second K−1, and so on. The leading score is the community's preference; there is no quorum
+  and **no vote executes anything on-chain**.
+- Voting weight is your **current hub-chain balance**; re-submitting replaces your ballot, and
+  every balance decrease (transfer, cross-chain send) automatically shrinks your open ballots —
+  tokens that left can never keep voting. Received tokens arrive unvoted.
+- The organization can close a question early only with a **public on-chain reason**.
+
+### Why can't holders create proposals directly? {#governance-design}
+
+With a small global cap on open questions (which bounds gas on every transfer), open proposing
+is squattable: one threshold-sized bankroll hopping between fresh accounts can fill every slot
+forever, and defending against that requires stake locks plus admin cancel/seizure backstops —
+at which point admin involvement is structural anyway. v1 takes honest control of question
+authorship instead, keeps voting and suggesting fully open, and preserves the complete
+open-proposing design (stake locks, cooldowns, cancel/seize) for a future version. The full
+analysis is in the repository: `docs/GOVERNANCE-DESIGN.md`.
 
 ## 6. The voting key — vote hot, keep your wallet cold {#voting-key}
 
