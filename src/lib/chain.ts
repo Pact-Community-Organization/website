@@ -48,16 +48,20 @@ export const num = (v: unknown): number =>
     ? Number((v as Record<string, unknown>).decimal ?? (v as Record<string, unknown>).int ?? NaN)
     : Number(v);
 
-// Read-only /local call.
-export async function local(code: string): Promise<unknown> {
+// Read-only /local call (hub chain by default; localOn targets any chain).
+export function local(code: string): Promise<unknown> {
+  return localOn(CFG.chain, code);
+}
+export async function localOn(chainId: string, code: string): Promise<unknown> {
   const cmd = JSON.stringify({
     networkId: CFG.networkId,
     payload: { exec: { code, data: {} } },
     signers: [],
-    meta: { chainId: CFG.chain, sender: 'reader', gasLimit: 150000, gasPrice: 1e-8, ttl: 600, creationTime: Math.floor(Date.now() / 1000) - 30 },
+    meta: { chainId, sender: 'reader', gasLimit: 150000, gasPrice: 1e-8, ttl: 600, creationTime: Math.floor(Date.now() / 1000) - 30 },
     nonce: `r:${Date.now()}:${Math.random()}`,
   });
-  const r = await fetch(`${API}/local`, {
+  const api = `${CFG.host}/chainweb/0.0/${CFG.networkId}/chain/${chainId}/pact/api/v1`;
+  const r = await fetch(`${api}/local`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ cmd, hash: cmdHash(cmd), sigs: [] }),
   });

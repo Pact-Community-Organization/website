@@ -6,7 +6,7 @@ import { CFG } from '@/lib/chain';
 import {
   loadOrCreateLocalKey, saveLocalKey, openRounds, alreadyClaimed, poolBalance, masterOpen,
   balance, openProposals, myVote, claim, transfer, transferCrossChain, vote, propose,
-  voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAccount, kdaBalance, importLocalKey,
+  voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance, importLocalKey,
   type Round, type Proposal,
 } from '@/lib/pco';
 import {
@@ -49,7 +49,7 @@ export default function TokenApp() {
   const [rotAccount, setRotAccount] = useState('');
   const [rotKey, setRotKey] = useState('');
   const [lookup, setLookup] = useState('');
-  const [lookupResult, setLookupResult] = useState('');
+  const [lookupResult, setLookupResult] = useState<{ label: string; total?: number; perChain?: { chain: string; balance: number }[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const say = (msg: string, kind: Status extends null ? never : 'info' | 'ok' | 'err' = 'info') => setStatus({ msg, kind });
@@ -202,9 +202,16 @@ export default function TokenApp() {
 
   const doLookup = async () => {
     const a = lookup.trim(); if (!a) return;
-    setLookupResult('…');
-    const r = await lookupAccount(a);
-    setLookupResult(r !== null ? `${a.length > 24 ? a.slice(0, 24) + '…' : a} holds ${r.balance.toLocaleString()} PCO` : 'No PCO account found under that name.');
+    setLookupResult({ label: 'Reading all 20 chains…' });
+    const r = await lookupAllChains(a);
+    if (r.perChain.length === 0) {
+      setLookupResult({ label: `${a.length > 24 ? a.slice(0, 24) + '…' : a} holds no PCO on any chain.` });
+    } else {
+      setLookupResult({
+        label: `${a.length > 24 ? a.slice(0, 24) + '…' : a} holds ${r.total.toLocaleString()} PCO across ${r.perChain.length} chain${r.perChain.length > 1 ? 's' : ''}`,
+        total: r.total, perChain: r.perChain,
+      });
+    }
   };
 
   const doPropose = async () => {
@@ -439,7 +446,22 @@ export default function TokenApp() {
           <input placeholder="account (k:… or named)" value={lookup} onChange={(e) => setLookup(e.target.value)} style={{ width: '70%' }} />
           <button className={styles.btn} disabled={busy} onClick={doLookup}>look up</button>
         </p>
-        {lookupResult && <p className={styles.mono}>{lookupResult}</p>}
+        {lookupResult && (
+          <>
+            <p className={styles.mono}>{lookupResult.label}</p>
+            {lookupResult.perChain && (
+              <p className={styles.muted}>
+                Per chain:{' '}
+                <select>
+                  {lookupResult.perChain.map((c) => (
+                    <option key={c.chain} value={c.chain}>chain {c.chain} — {c.balance.toLocaleString()} PCO</option>
+                  ))}
+                </select>
+                {' '}<span>(only chains holding PCO; voting weight counts the hub — chain 0 — balance)</span>
+              </p>
+            )}
+          </>
+        )}
       </section>
 
       {/* ---- Propose ---- */}
