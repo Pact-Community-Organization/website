@@ -43,8 +43,8 @@ export default function TokenApp() {
   const [vkCold, setVkCold] = useState('');          // cold account this browser's key votes for
   const [voteMode, setVoteMode] = useState<'wallet' | 'hotkey'>('wallet');
   const [walletKda, setWalletKda] = useState(0);
-  const [destMode, setDestMode] = useState<'wallet' | 'other'>('wallet');
   const [destAddr, setDestAddr] = useState('');
+  const [destEdited, setDestEdited] = useState(false);   // user typed their own receiving address
   const [secretIn, setSecretIn] = useState('');
   const [rotAccount, setRotAccount] = useState('');
   const [rotKey, setRotKey] = useState('');
@@ -69,12 +69,12 @@ export default function TokenApp() {
       setProposals(props);
       if (op && rs.length && !rs.some((r) => r.id === roundId)) setRoundId(rs[0].id);
       const sel = rs.find((r) => r.id === roundId) ?? rs[0];
-      // claims may target a PASTED address (a destination, not a second
-      // identity); everything else follows the ONE active wallet
-      const destAcct = destMode === 'other'
-        ? (/^k:[0-9a-f]{64}$/.test(destAddr.trim()) ? destAddr.trim() : null)
-        : w.account;
-      setClaimed(sel && destAcct ? await alreadyClaimed(sel.id, destAcct) : false);
+      // the RECEIVING ADDRESS is an open field: it follows the active wallet
+      // until the user types their own (e.g. a hardware wallet in a safe —
+      // paste the public address and claim, nothing signs)
+      const effDest = destEdited ? destAddr.trim() : w.account;
+      if (!destEdited && destAddr !== w.account) setDestAddr(w.account);
+      setClaimed(sel && /^k:[0-9a-f]{64}$/.test(effDest) ? await alreadyClaimed(sel.id, effDest) : false);
       setWalletBal(await balance(w.account));
       setWalletKda(await kdaBalance(w.account));
       setVkActive(await voteKeyActive(w.account));
@@ -86,7 +86,7 @@ export default function TokenApp() {
     } catch (e) {
       say(`Cannot reach devnet: ${(e as Error).message}`, 'err');
     }
-  }, [key, roundId, wallet, destMode, destAddr]);
+  }, [key, roundId, wallet, destEdited, destAddr]);
 
   // refresh is re-created whenever key/roundId/wallet change (its useCallback
   // deps), so this effect re-runs with FRESH state — no manual refresh() calls
@@ -103,15 +103,10 @@ export default function TokenApp() {
     // destination = the active wallet, OR a pasted k: address. No destination
     // signature is needed — claims have no claimer signature by design; the
     // browser key only signs the station's GAS_PAYER capability.
-    let dest: { account: string; publicKey: string };
-    if (destMode === 'other') {
-      const a = destAddr.trim();
-      if (!/^k:[0-9a-f]{64}$/.test(a)) return say('That is not a valid k: account — expected "k:" + 64 lowercase hex characters. Check for typos before claiming.', 'err');
-      dest = { account: a, publicKey: a.slice(2) };
-    } else {
-      dest = { account: wallet.account, publicKey: wallet.publicKey };
-    }
-    const destLabel = destMode === 'other' ? `${dest.account.slice(0, 14)}…` : `your ${wallet.label} account`;
+    const a = (destEdited ? destAddr.trim() : wallet.account);
+    if (!/^k:[0-9a-f]{64}$/.test(a)) return say('That is not a valid k: account — expected "k:" + 64 lowercase hex characters. Check for typos before claiming.', 'err');
+    const dest = { account: a, publicKey: a.slice(2) };
+    const destLabel = destEdited && a !== wallet.account ? `${a.slice(0, 14)}…` : `your ${wallet.label} account`;
     setBusy(true); say(`Claiming "${round.id}" to ${destLabel} (the gas station pays the fee)…`);
     try { await claim(round, dest, k, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}…!`, 'ok'); setCode(''); }
     catch (e) { say(`Claim failed: ${(e as Error).message}`, 'err'); }
@@ -333,24 +328,23 @@ export default function TokenApp() {
           The station sponsors <b>only</b> claims; everything else is self-paid.
         </p>
         <p className={styles.muted}>
-          Claim to:{' '}
-          <select value={destMode} onChange={(e) => setDestMode(e.target.value as 'wallet' | 'other')}>
-            <option value="wallet">my active wallet{wallet ? ` (${wallet.label} · ${wallet.account.slice(0, 14)}…)` : ''}</option>
-            <option value="other">another address</option>
-          </select>
+          <b>Receiving address</b> — pre-filled with your active wallet. Paste any{' '}
+          <span className={styles.mono}>k:</span> address instead (a hardware wallet in a safe, a
+          friend&apos;s account…) and claim straight to it: the receiving address never signs and
+          needs no wallet here.
         </p>
-        {destMode === 'other' && (
-          <>
-            <p><input placeholder="k:address that should receive the claim" value={destAddr} onChange={(e) => setDestAddr(e.target.value)} style={{ width: '100%' }} /></p>
-            {destAddr.trim() !== '' && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()) && (
-              <p className={styles.muted}>⚠ not a valid k: account yet — expected <span className={styles.mono}>k:</span> followed by exactly 64 lowercase hex characters ({destAddr.trim().startsWith('k:') ? `${destAddr.trim().length - 2}/64 after "k:"` : 'missing the "k:" prefix'}).</p>
-            )}
-            <p className={styles.muted}>
-              No wallet or signature is needed for that address — tokens can only land in the
-              account bound to its own key. If you hold its <b>secret key</b>, you can also import
-              it in step 1 to sign self-paid actions with it.
-            </p>
-          </>
+        <p>
+          <input placeholder="k:address that receives the claim" value={destAddr}
+            onChange={(e) => { setDestAddr(e.target.value); setDestEdited(true); }}
+            style={{ width: '100%' }} />
+        </p>
+        {destEdited && destAddr.trim() !== '' && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()) && (
+          <p className={styles.muted}>⚠ not a valid k: account yet — expected <span className={styles.mono}>k:</span> followed by exactly 64 lowercase hex characters ({destAddr.trim().startsWith('k:') ? `${destAddr.trim().length - 2}/64 after "k:"` : 'missing the "k:" prefix'}).</p>
+        )}
+        {destEdited && wallet && destAddr.trim() !== wallet.account && (
+          <p className={styles.muted}>
+            <button className={styles.btn} onClick={() => { setDestEdited(false); setDestAddr(wallet.account); }}>use my active wallet instead</button>
+          </p>
         )}
         <p className={styles.muted}>{pool.toLocaleString()} PCO left in the pool</p>
         <p className={styles.muted}>Pick a round and answer its community quest (published on the PCO channels with its round id):</p>
@@ -362,14 +356,14 @@ export default function TokenApp() {
         <p>
           <input placeholder="engagement code" value={code} onChange={(e) => setCode(e.target.value)} />
           <button className={styles.btn}
-            disabled={busy || !open || !round || claimed || (destMode === 'other' && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()))}
+            disabled={busy || !open || !round || claimed || (destEdited && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()))}
             onClick={doClaim}>
             {round ? `claim ${round.amount} PCO` : 'claim'}
           </button>
         </p>
         {claimed && (
           <p className={styles.muted}>
-            {destMode === 'other' ? `That address (${destAddr.trim().slice(0, 14)}…)` : `Your active wallet (${wallet?.account.slice(0, 14)}…)`} already
+            {destEdited && destAddr.trim() !== wallet?.account ? `That address (${destAddr.trim().slice(0, 14)}…)` : `Your active wallet (${wallet?.account.slice(0, 14)}…)`} already
             claimed round &quot;{round?.id}&quot; — one claim per account per round; it holds those tokens.
             {rounds.length > 1 && ' Other open rounds are still claimable.'}
             {' '}A different destination can still claim this round.
