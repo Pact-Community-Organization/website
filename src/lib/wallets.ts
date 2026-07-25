@@ -127,14 +127,20 @@ export async function connectEcko(onSessionEnd?: (reason: string) => void): Prom
 
 // ---------------- Zelcore (localhost signing API) ----------------
 const ZELCORE = 'http://127.0.0.1:9467';
+const ZELCORE_HELP = 'Zelcore not reachable — open the Zelcore app and log in, then try again. If the browser asked about accessing devices on your local network, allow it and retry.';
 export async function connectZelcore(): Promise<ConnectedWallet> {
   let accounts: string[];
   try {
-    const res = await fetch(`${ZELCORE}/v1/accounts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ asset: 'kadena' }) });
+    // a dead local endpoint can HANG instead of refusing (browser local-network
+    // gating) — bound the probe so the UI never sits on "Connecting…" forever
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    const res = await fetch(`${ZELCORE}/v1/accounts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ asset: 'kadena' }), signal: ctl.signal });
+    clearTimeout(timer);
     const j = await res.json();
     accounts = (j?.data ?? []).filter((a: string) => typeof a === 'string' && a.startsWith('k:'));
   } catch {
-    throw new Error('Zelcore not reachable — open the Zelcore app and log in, then try again');
+    throw new Error(ZELCORE_HELP);
   }
   if (accounts.length === 0) throw new Error('Zelcore returned no k: Kadena accounts');
   const account = accounts[0];
@@ -158,18 +164,37 @@ export async function connectLedger(): Promise<ConnectedWallet> {
   if (!('hid' in navigator)) throw new Error('This browser has no WebHID (use Chrome/Edge/Brave) — Ledger unavailable');
   // Dynamic imports: Next code-splits these so the Ledger stack loads only
   // when the user clicks "Ledger". The transport expects the node Buffer
-  // global — shim it first.
-  const { Buffer } = await import('buffer');
-  (globalThis as unknown as { Buffer?: unknown }).Buffer ??= Buffer;
-  const [{ default: TransportWebHID }, { KadenaApp }] = await Promise.all([
-    import('@ledgerhq/hw-transport-webhid'),
-    import('@zondax/ledger-kadena'),
-  ]);
-  const transport = await TransportWebHID.create();
+  // global — shim it first. Each phase fails with an HONEST message: a chunk
+  // that vanished after a redeploy is a stale tab, not a broken wallet.
+  let TransportWebHID: { create: () => Promise<unknown> };
+  let KadenaApp: new (t: unknown) => unknown;
+  try {
+    const { Buffer } = await import('buffer');
+    (globalThis as unknown as { Buffer?: unknown }).Buffer ??= Buffer;
+    [{ default: TransportWebHID }, { KadenaApp }] = await Promise.all([
+      import('@ledgerhq/hw-transport-webhid'),
+      import('@zondax/ledger-kadena'),
+    ]) as [{ default: typeof TransportWebHID }, { KadenaApp: typeof KadenaApp }];
+  } catch {
+    throw new Error('Could not load the Ledger module — the site was updated since this page loaded. Hard-reload (Ctrl+Shift+R) and try again.');
+  }
+  let transport: unknown;
+  try {
+    transport = await TransportWebHID.create();
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e);
+    if (/cancel|No device selected/i.test(m)) throw new Error('No device selected — plug the Ledger in, open the Kadena app, and pick the device in the browser prompt.');
+    throw new Error(`Ledger connection failed: ${m}`);
+  }
   ledgerApp = new KadenaApp(transport) as unknown as typeof ledgerApp;
   const path = "m/44'/626'/0'/0/0";
-  const addr = await ledgerApp!.getAddressAndPubKey(path);
-  const pub = bytesToHex(new Uint8Array((addr.pubkey ?? addr.publicKey) as Uint8Array));
+  let pub = '';
+  try {
+    const addr = await ledgerApp!.getAddressAndPubKey(path);
+    pub = bytesToHex(new Uint8Array((addr.pubkey ?? addr.publicKey) as Uint8Array));
+  } catch {
+    throw new Error('The device answered but no key came back — is the KADENA app open on the Ledger?');
+  }
   if (!pub || pub.length !== 64) throw new Error('Ledger returned no public key — open the Kadena app on the device');
   return {
     kind: 'ledger', label: 'Ledger', account: `k:${pub}`, publicKey: pub,
