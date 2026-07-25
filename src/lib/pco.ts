@@ -98,6 +98,39 @@ export function transferCrossChain(w: ConnectedWallet, to: string, targetChain: 
 export function vote(w: ConnectedWallet, pid: string, choice: string) {
   return selfPaid(w, `(${T}.cast-vote "${pid}" "${w.account}" "${choice}")`, [{ name: `${T}.VOTE`, args: [pid, w.account] }]);
 }
+// Cast a vote FOR another account (the cold one) signed by its registered vote
+// key — the signer w is the HOT key and pays its own gas.
+export function voteAs(w: ConnectedWallet, coldAccount: string, pid: string, choice: string) {
+  return selfPaid(w, `(${T}.cast-vote "${pid}" "${coldAccount}" "${choice}")`, [{ name: `${T}.VOTE`, args: [pid, coldAccount] }]);
+}
+// Register/replace the account's dedicated vote key (MAIN wallet signs, scoped
+// to VOTE-KEY-ADMIN). The hot key can then ONLY vote — nothing else.
+export function setVoteKey(w: ConnectedWallet, hotPubKey: string) {
+  return selfPaid(w, `(${T}.set-vote-key "${w.account}" (read-keyset 'vk))`,
+    [{ name: `${T}.VOTE-KEY-ADMIN`, args: [w.account] }],
+    { vk: { keys: [hotPubKey], pred: 'keys-all' } });
+}
+export function clearVoteKey(w: ConnectedWallet) {
+  return selfPaid(w, `(${T}.clear-vote-key "${w.account}")`,
+    [{ name: `${T}.VOTE-KEY-ADMIN`, args: [w.account] }]);
+}
+export async function voteKeyActive(account: string): Promise<boolean> {
+  return Boolean(await local(`(at 'active (${T}.get-vote-key "${account}"))`).catch(() => false));
+}
+// Rotate an account's guard (the wallet must satisfy the CURRENT guard;
+// scoped ROTATE cap). NOTE: principal (k:) accounts cannot rotate away from
+// their canonical guard — rotation is meaningful for NAMED accounts only;
+// the UI enforces this before building the transaction.
+export function rotate(w: ConnectedWallet, account: string, newPubKey: string) {
+  return selfPaid(w, `(${T}.rotate "${account}" (read-keyset 'ng))`,
+    [{ name: `${T}.ROTATE`, args: [account] }],
+    { ng: { keys: [newPubKey], pred: 'keys-all' } });
+}
+// Read-only lookups — no wallet, no signature.
+export async function lookupAccount(account: string): Promise<{ balance: number } | null> {
+  try { return { balance: dec(await local(`(${T}.get-balance "${account}")`)) }; }
+  catch { return null; }
+}
 export function propose(w: ConnectedWallet, title: string, body: string, days: number) {
   const clean = (s: string) => s.replace(/["\\]/g, '');
   return selfPaid(w, `(${T}.create-proposal "${w.account}" "${clean(title)}" "${clean(body)}" ${days * 24})`, [{ name: `${T}.PROPOSE`, args: [w.account] }]);

@@ -54,6 +54,23 @@ export default function TokenPage() {
           <li>Round budgets and grant caps bound every event — when a budget is exhausted, the round is over.</li>
           <li>Official rounds exist on-chain before they exist anywhere else. We never direct-message claim links.</li>
         </ul>
+
+        <h2>Documentation</h2>
+        <ul>
+          <li>
+            <b><Link href="/token/guide">The user guide</Link></b> — step-by-step: claiming, wallet
+            setup (all four options, including the devnet network for EckoWallet), transfers,
+            voting, the <Link href="/token/guide#voting-key">voting key</Link>, guard{' '}
+            <Link href="/token/guide#rotate">rotation</Link>, and how to verify everything yourself.
+          </li>
+          <li>
+            <a href="https://github.com/Pact-Community-Organization/website/wiki/PCO-Token-Guide">The same guide on the wiki</a> — for reading outside the site.
+          </li>
+          <li>
+            <a href={REPO}>The contracts on GitHub</a> — source of truth: modules, test suites, and
+            the verification guide for byte-comparing what is deployed against the repository.
+          </li>
+        </ul>
       </div>
 
       <TokenApp />

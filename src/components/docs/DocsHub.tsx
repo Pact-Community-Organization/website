@@ -3,6 +3,13 @@ import styles from '@/styles/docs.module.css';
 
 const links = [
   {
+    title: 'PCO Token Guide',
+    url: '/token/guide',
+    description:
+      'How to use the PCO community token: claiming, wallets, transfers, advisory voting, the dedicated voting key, guard rotation, and verifying everything on-chain.',
+    internal: true,
+  },
+  {
     title: 'NFT Documentation',
     url: '/nft',
     description:

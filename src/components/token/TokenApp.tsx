@@ -6,6 +6,7 @@ import { CFG } from '@/lib/chain';
 import {
   loadOrCreateLocalKey, saveLocalKey, openRounds, alreadyClaimed, poolBalance, masterOpen,
   balance, openProposals, myVote, claim, transfer, transferCrossChain, vote, propose,
+  voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAccount,
   type Round, type Proposal,
 } from '@/lib/pco';
 import {
@@ -36,6 +37,13 @@ export default function TokenApp() {
   const [pDays, setPDays] = useState('7');
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
+  const [vkActive, setVkActive] = useState(false);
+  const [vkCold, setVkCold] = useState('');          // cold account this browser's key votes for
+  const [voteMode, setVoteMode] = useState<'wallet' | 'hotkey'>('wallet');
+  const [rotAccount, setRotAccount] = useState('');
+  const [rotKey, setRotKey] = useState('');
+  const [lookup, setLookup] = useState('');
+  const [lookupResult, setLookupResult] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const say = (msg: string, kind: Status extends null ? never : 'info' | 'ok' | 'err' = 'info') => setStatus({ msg, kind });
@@ -55,10 +63,13 @@ export default function TokenApp() {
       setClaimed(sel ? await alreadyClaimed(sel.id, k.account) : false);
       if (wallet) {
         setWalletBal(await balance(wallet.account));
+        setVkActive(await voteKeyActive(wallet.account));
         const mv: Record<string, { choice: string; weight: number } | null> = {};
         for (const p of props) mv[p.pid] = await myVote(p.pid, wallet.account);
         setMyVotes(mv);
       }
+      const cold = localStorage.getItem('pco-votekey-cold') ?? '';
+      setVkCold(cold && (await voteKeyActive(cold)) ? cold : '');
     } catch (e) {
       say(`Cannot reach devnet: ${(e as Error).message}`, 'err');
     }
@@ -109,11 +120,60 @@ export default function TokenApp() {
   };
 
   const doVote = async (pid: string, choice: string) => {
+    if (voteMode === 'hotkey' && vkCold && key) {
+      // the browser key is a registered VOTE KEY for the cold account: it signs
+      // and pays its own gas; the cold wallet never comes out for voting
+      setBusy(true); say(`Casting ${choice} as ${vkCold.slice(0, 14)}… with the browser vote key…`);
+      try { await voteAs(connectLocalKey(key), vkCold, pid, choice); say(`Voted ${choice} as the cold account (vote key signed).`, 'ok'); }
+      catch (e) { say(`Vote-key vote failed: ${(e as Error).message}`, 'err'); }
+      setBusy(false); void refresh(); return;
+    }
     if (!wallet) return say('Connect a wallet to vote (you pay your own gas).', 'err');
     setBusy(true); say(`Casting ${choice} on ${pid}…`);
     try { await vote(wallet, pid, choice); say(`Voted ${choice} on ${pid}.`, 'ok'); }
     catch (e) { say(`Vote failed: ${(e as Error).message}`, 'err'); }
     setBusy(false); void refresh();
+  };
+
+  const doRegisterVoteKey = async () => {
+    if (!wallet || !key) return say('Connect your main wallet first.', 'err');
+    setBusy(true); say("Registering this browser's key as your vote key (your wallet signs)…");
+    try {
+      await setVoteKey(wallet, key.publicKey);
+      localStorage.setItem('pco-votekey-cold', wallet.account);
+      say('Vote key registered — this browser can now vote for your account (and ONLY vote).', 'ok');
+    } catch (e) { say(`Registration failed: ${(e as Error).message}`, 'err'); }
+    setBusy(false); void refresh();
+  };
+  const doClearVoteKey = async () => {
+    if (!wallet) return say('Connect your main wallet first.', 'err');
+    setBusy(true); say('Clearing your vote key…');
+    try {
+      await clearVoteKey(wallet);
+      if (localStorage.getItem('pco-votekey-cold') === wallet.account) localStorage.removeItem('pco-votekey-cold');
+      say('Vote key cleared — only your main wallet can vote now.', 'ok');
+    } catch (e) { say(`Clear failed: ${(e as Error).message}`, 'err'); }
+    setBusy(false); void refresh();
+  };
+
+  const doRotate = async () => {
+    if (!wallet) return say('Connect a wallet first.', 'err');
+    const acct = rotAccount.trim() || wallet.account;
+    if (acct.startsWith('k:')) {
+      return say('k: (principal) accounts cannot rotate — the protocol fixes their guard to their key. Rotation applies to NAMED accounts whose current guard your wallet satisfies.', 'err');
+    }
+    if (!/^[0-9a-f]{64}$/.test(rotKey.trim())) return say('New key must be 64 hex characters.', 'err');
+    setBusy(true); say(`Rotating the guard of ${acct}…`);
+    try { await rotate(wallet, acct, rotKey.trim()); say(`Guard of ${acct} rotated to the new key.`, 'ok'); setRotKey(''); }
+    catch (e) { say(`Rotate failed: ${(e as Error).message}`, 'err'); }
+    setBusy(false); void refresh();
+  };
+
+  const doLookup = async () => {
+    const a = lookup.trim(); if (!a) return;
+    setLookupResult('…');
+    const r = await lookupAccount(a);
+    setLookupResult(r !== null ? `${a.length > 24 ? a.slice(0, 24) + '…' : a} holds ${r.balance.toLocaleString()} PCO` : 'No PCO account found under that name.');
   };
 
   const doPropose = async () => {
@@ -209,10 +269,26 @@ export default function TokenApp() {
             <button className={styles.btn} onClick={() => connect('ledger')}>Ledger</button>
           </p>
         ) : (
-          <p>
-            Wallet holds: <b>{walletBal.toLocaleString()} PCO</b>
-            <button className={styles.btn} onClick={() => { wallet.disconnect?.(); setWallet(null); say('Wallet disconnected.'); }}>disconnect</button>
-          </p>
+          <>
+            <p>
+              Wallet holds: <b>{walletBal.toLocaleString()} PCO</b>
+              <button className={styles.btn} onClick={() => { wallet.disconnect?.(); setWallet(null); say('Wallet disconnected.'); }}>disconnect</button>
+            </p>
+            <hr />
+            <h3>Voting key {vkActive ? '— active' : '— none registered'}</h3>
+            <p className={styles.muted}>
+              Register this browser&apos;s key as a dedicated <b>vote key</b> for your account: it can
+              then vote on your behalf while your main wallet stays cold. The vote key can <b>only
+              vote</b> — it can never transfer, rotate, or re-point itself. Your main wallet always
+              keeps its own voting power and can clear the key at any time.{' '}
+              <a href="/token/guide#voting-key">How this works →</a>
+            </p>
+            <p>
+              {!vkActive
+                ? <button className={styles.btn} disabled={busy} onClick={doRegisterVoteKey}>register browser key as vote key</button>
+                : <button className={styles.btn} disabled={busy} onClick={doClearVoteKey}>clear vote key</button>}
+            </p>
+          </>
         )}
       </section>
 
@@ -234,6 +310,15 @@ export default function TokenApp() {
       {/* ---- Proposals ---- */}
       <section className={styles.card}>
         <h2>Open advisory proposals</h2>
+        {vkCold && (
+          <p className={styles.muted}>
+            Voting as:{' '}
+            <select value={voteMode} onChange={(e) => setVoteMode(e.target.value as 'wallet' | 'hotkey')}>
+              <option value="wallet">connected wallet{wallet ? ` (${wallet.account.slice(0, 14)}…)` : ''}</option>
+              <option value="hotkey">{vkCold.slice(0, 14)}… via this browser&apos;s vote key</option>
+            </select>
+          </p>
+        )}
         {proposals.length === 0 ? <p className={styles.muted}>No open proposals right now.</p> : proposals.map((p) => (
           <div key={p.pid} className={styles.proposal}>
             <h3>#{p.pid} — {p.title}</h3>
@@ -243,11 +328,39 @@ export default function TokenApp() {
             </p>
             <p>
               {['yes', 'no', 'abstain'].map((ch) => (
-                <button key={ch} className={styles.btn} disabled={busy || !wallet} onClick={() => doVote(p.pid, ch)}>vote {ch}</button>
+                <button key={ch} className={styles.btn}
+                  disabled={busy || (voteMode === 'hotkey' ? !vkCold : !wallet)}
+                  onClick={() => doVote(p.pid, ch)}>vote {ch}</button>
               ))}
             </p>
           </div>
         ))}
+      </section>
+
+      {/* ---- Rotate (named accounts) ---- */}
+      <section className={styles.card}>
+        <h2>Rotate an account guard</h2>
+        <p className={styles.muted}>
+          Point a <b>named</b> PCO account at a new key (your connected wallet must satisfy its
+          current guard). Protocol note: <b>k: accounts cannot rotate</b> — their guard is
+          permanently bound to their key. <a href="/token/guide#rotate">Details →</a>
+        </p>
+        <p><input placeholder={`account (default: your wallet account)`} value={rotAccount} onChange={(e) => setRotAccount(e.target.value)} style={{ width: '100%' }} /></p>
+        <p>
+          <input placeholder="new public key (64 hex)" value={rotKey} onChange={(e) => setRotKey(e.target.value)} style={{ width: '70%' }} />
+          <button className={styles.btn} disabled={busy || !wallet} onClick={doRotate}>rotate guard</button>
+        </p>
+      </section>
+
+      {/* ---- Look up (read-only) ---- */}
+      <section className={styles.card}>
+        <h2>Look up any account</h2>
+        <p className={styles.muted}>Read-only — no wallet, no signature. Balances and tallies are public chain state.</p>
+        <p>
+          <input placeholder="account (k:… or named)" value={lookup} onChange={(e) => setLookup(e.target.value)} style={{ width: '70%' }} />
+          <button className={styles.btn} disabled={busy} onClick={doLookup}>look up</button>
+        </p>
+        {lookupResult && <p className={styles.mono}>{lookupResult}</p>}
       </section>
 
       {/* ---- Propose ---- */}
