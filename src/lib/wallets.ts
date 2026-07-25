@@ -156,19 +156,15 @@ export async function connectZelcore(): Promise<ConnectedWallet> {
 let ledgerApp: { transport?: { close?: () => Promise<void> }; getAddressAndPubKey: (p: string) => Promise<{ pubkey?: Uint8Array; publicKey?: Uint8Array }>; signHash: (p: string, h: string) => Promise<{ signature?: Uint8Array }> } | null = null;
 export async function connectLedger(): Promise<ConnectedWallet> {
   if (!('hid' in navigator)) throw new Error('This browser has no WebHID (use Chrome/Edge/Brave) — Ledger unavailable');
-  // Ledger libs are optional (heavy); load by name at runtime so the build
-  // doesn't require them. Absent → honest error (this DEVNET preview leads with
-  // the in-browser key and EckoWallet; Ledger is for the real launch build).
-  let TransportWebHID: { create: () => Promise<{ close?: () => Promise<void> }> }, KadenaApp: new (t: unknown) => unknown, Buffer: unknown;
-  try {
-    const dyn = (m: string) => import(/* webpackIgnore: true */ m);
-    ({ Buffer } = await dyn('buffer'));
-    (globalThis as unknown as { Buffer?: unknown }).Buffer ??= Buffer;
-    ({ default: TransportWebHID } = await dyn('@ledgerhq/hw-transport-webhid'));
-    ({ KadenaApp } = await dyn('@zondax/ledger-kadena'));
-  } catch {
-    throw new Error('Ledger support is not built into this preview — use the in-browser key or EckoWallet');
-  }
+  // Dynamic imports: Next code-splits these so the Ledger stack loads only
+  // when the user clicks "Ledger". The transport expects the node Buffer
+  // global — shim it first.
+  const { Buffer } = await import('buffer');
+  (globalThis as unknown as { Buffer?: unknown }).Buffer ??= Buffer;
+  const [{ default: TransportWebHID }, { KadenaApp }] = await Promise.all([
+    import('@ledgerhq/hw-transport-webhid'),
+    import('@zondax/ledger-kadena'),
+  ]);
   const transport = await TransportWebHID.create();
   ledgerApp = new KadenaApp(transport) as unknown as typeof ledgerApp;
   const path = "m/44'/626'/0'/0/0";
