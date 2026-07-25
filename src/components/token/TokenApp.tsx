@@ -6,7 +6,7 @@ import { CFG } from '@/lib/chain';
 import {
   loadOrCreateLocalKey, saveLocalKey, openRounds, alreadyClaimed, poolBalance, masterOpen,
   balance, openProposals, myVote, claim, transfer, transferCrossChain, vote, propose,
-  voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAccount, kdaBalance,
+  voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAccount, kdaBalance, importLocalKey,
   type Round, type Proposal,
 } from '@/lib/pco';
 import {
@@ -43,6 +43,9 @@ export default function TokenApp() {
   const [vkCold, setVkCold] = useState('');          // cold account this browser's key votes for
   const [voteMode, setVoteMode] = useState<'wallet' | 'hotkey'>('wallet');
   const [walletKda, setWalletKda] = useState(0);
+  const [destMode, setDestMode] = useState<'wallet' | 'other'>('wallet');
+  const [destAddr, setDestAddr] = useState('');
+  const [secretIn, setSecretIn] = useState('');
   const [rotAccount, setRotAccount] = useState('');
   const [rotKey, setRotKey] = useState('');
   const [lookup, setLookup] = useState('');
@@ -66,8 +69,12 @@ export default function TokenApp() {
       setProposals(props);
       if (op && rs.length && !rs.some((r) => r.id === roundId)) setRoundId(rs[0].id);
       const sel = rs.find((r) => r.id === roundId) ?? rs[0];
-      // everything follows the ONE active wallet
-      setClaimed(sel ? await alreadyClaimed(sel.id, w.account) : false);
+      // claims may target a PASTED address (a destination, not a second
+      // identity); everything else follows the ONE active wallet
+      const destAcct = destMode === 'other'
+        ? (/^k:[0-9a-f]{64}$/.test(destAddr.trim()) ? destAddr.trim() : null)
+        : w.account;
+      setClaimed(sel && destAcct ? await alreadyClaimed(sel.id, destAcct) : false);
       setWalletBal(await balance(w.account));
       setWalletKda(await kdaBalance(w.account));
       setVkActive(await voteKeyActive(w.account));
@@ -79,7 +86,7 @@ export default function TokenApp() {
     } catch (e) {
       say(`Cannot reach devnet: ${(e as Error).message}`, 'err');
     }
-  }, [key, roundId, wallet]);
+  }, [key, roundId, wallet, destMode, destAddr]);
 
   // refresh is re-created whenever key/roundId/wallet change (its useCallback
   // deps), so this effect re-runs with FRESH state — no manual refresh() calls
@@ -93,12 +100,20 @@ export default function TokenApp() {
     if (!wallet) return say('Choose your wallet first (step 1).', 'err');
     if (!round) return say('No open round right now.', 'err');
     if (!code.trim()) return say('Enter the engagement code first.', 'err');
-    // destination = THE active wallet. No wallet signature is needed — claims
-    // have no claimer signature by design; the browser key only signs the
-    // station's GAS_PAYER capability.
-    const dest = { account: wallet.account, publicKey: wallet.publicKey };
-    setBusy(true); say(`Claiming "${round.id}" to your ${wallet.label} account (the gas station pays the fee)…`);
-    try { await claim(round, dest, k, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}… (${wallet.label})!`, 'ok'); setCode(''); }
+    // destination = the active wallet, OR a pasted k: address. No destination
+    // signature is needed — claims have no claimer signature by design; the
+    // browser key only signs the station's GAS_PAYER capability.
+    let dest: { account: string; publicKey: string };
+    if (destMode === 'other') {
+      const a = destAddr.trim();
+      if (!/^k:[0-9a-f]{64}$/.test(a)) return say('That is not a valid k: account — expected "k:" + 64 lowercase hex characters. Check for typos before claiming.', 'err');
+      dest = { account: a, publicKey: a.slice(2) };
+    } else {
+      dest = { account: wallet.account, publicKey: wallet.publicKey };
+    }
+    const destLabel = destMode === 'other' ? `${dest.account.slice(0, 14)}…` : `your ${wallet.label} account`;
+    setBusy(true); say(`Claiming "${round.id}" to ${destLabel} (the gas station pays the fee)…`);
+    try { await claim(round, dest, k, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}…!`, 'ok'); setCode(''); }
     catch (e) { say(`Claim failed: ${(e as Error).message}`, 'err'); }
     setBusy(false); void refresh();
   };
@@ -270,12 +285,24 @@ export default function TokenApp() {
               {walletKda < 0.05 && <span className={styles.muted}> — self-paid actions (transfer/vote/propose) need a little KDA; claiming does not</span>}
             </p>
             {wallet.kind === 'localkey' && (
-              <p className={styles.muted}>
-                <b>This key lives only in this browser.</b> Keep the backup — clearing storage deletes it.
-                <button className={styles.btn} onClick={backup}>download key backup</button>
-                <button className={styles.btn} onClick={restore}>restore from backup</button>
-                <input ref={fileRef} type="file" accept="application/json" hidden onChange={onRestore} />
-              </p>
+              <>
+                <p className={styles.muted}>
+                  <b>This key lives only in this browser.</b> Keep the backup — clearing storage deletes it.
+                  <button className={styles.btn} onClick={backup}>download key backup</button>
+                  <button className={styles.btn} onClick={restore}>restore from backup</button>
+                  <input ref={fileRef} type="file" accept="application/json" hidden onChange={onRestore} />
+                </p>
+                <p>
+                  <input placeholder="import a secret key (64 hex) to sign with it" value={secretIn} onChange={(e) => setSecretIn(e.target.value)} style={{ width: '70%' }} />
+                  <button className={styles.btn} disabled={busy || !secretIn.trim()} onClick={() => {
+                    try {
+                      const a = importLocalKey(secretIn);
+                      setKey(a); setWallet(connectLocalKey(a)); setSecretIn('');
+                      say('Secret key imported — it is now the active in-browser wallet. (It replaced the previous browser key; a downloaded backup still restores that one.)', 'ok');
+                    } catch (e) { say(`Import failed: ${(e as Error).message}`, 'err'); }
+                  }}>import</button>
+                </p>
+              </>
             )}
             {wallet.kind !== 'localkey' && (
               <>
@@ -302,10 +329,29 @@ export default function TokenApp() {
       <section className={styles.card}>
         <h2>2 · Claim — {open ? (rounds.length ? `${rounds.length} open round${rounds.length > 1 ? 's' : ''}` : 'no open rounds') : 'CLOSED'}</h2>
         <p className={styles.muted}>
-          Claims land in your <b>active wallet</b> ({wallet ? `${wallet.label} · ${wallet.account.slice(0, 14)}…` : '…'}).
-          The gas station pays the fee and your wallet never signs — claiming is free, with any wallet.
+          The gas station pays the fee and the receiving account never signs — claiming is free.
           The station sponsors <b>only</b> claims; everything else is self-paid.
         </p>
+        <p className={styles.muted}>
+          Claim to:{' '}
+          <select value={destMode} onChange={(e) => setDestMode(e.target.value as 'wallet' | 'other')}>
+            <option value="wallet">my active wallet{wallet ? ` (${wallet.label} · ${wallet.account.slice(0, 14)}…)` : ''}</option>
+            <option value="other">another address</option>
+          </select>
+        </p>
+        {destMode === 'other' && (
+          <>
+            <p><input placeholder="k:address that should receive the claim" value={destAddr} onChange={(e) => setDestAddr(e.target.value)} style={{ width: '100%' }} /></p>
+            {destAddr.trim() !== '' && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()) && (
+              <p className={styles.muted}>⚠ not a valid k: account yet — expected <span className={styles.mono}>k:</span> followed by exactly 64 lowercase hex characters ({destAddr.trim().startsWith('k:') ? `${destAddr.trim().length - 2}/64 after "k:"` : 'missing the "k:" prefix'}).</p>
+            )}
+            <p className={styles.muted}>
+              No wallet or signature is needed for that address — tokens can only land in the
+              account bound to its own key. If you hold its <b>secret key</b>, you can also import
+              it in step 1 to sign self-paid actions with it.
+            </p>
+          </>
+        )}
         <p className={styles.muted}>{pool.toLocaleString()} PCO left in the pool</p>
         <p className={styles.muted}>Pick a round and answer its community quest (published on the PCO channels with its round id):</p>
         <p>
@@ -315,16 +361,18 @@ export default function TokenApp() {
         </p>
         <p>
           <input placeholder="engagement code" value={code} onChange={(e) => setCode(e.target.value)} />
-          <button className={styles.btn} disabled={busy || !open || !round || claimed} onClick={doClaim}>
+          <button className={styles.btn}
+            disabled={busy || !open || !round || claimed || (destMode === 'other' && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()))}
+            onClick={doClaim}>
             {round ? `claim ${round.amount} PCO` : 'claim'}
           </button>
         </p>
         {claimed && (
           <p className={styles.muted}>
-            Your active wallet ({wallet?.account.slice(0, 14)}…) already claimed round
-            &quot;{round?.id}&quot; — one claim per account per round; it holds those tokens.
+            {destMode === 'other' ? `That address (${destAddr.trim().slice(0, 14)}…)` : `Your active wallet (${wallet?.account.slice(0, 14)}…)`} already
+            claimed round &quot;{round?.id}&quot; — one claim per account per round; it holds those tokens.
             {rounds.length > 1 && ' Other open rounds are still claimable.'}
-            {' '}Switching the active wallet (step 1) switches who claims.
+            {' '}A different destination can still claim this round.
           </p>
         )}
       </section>

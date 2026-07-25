@@ -160,6 +160,17 @@ export function loadOrCreateLocalKey(): LocalAccount {
 export function saveLocalKey(acct: LocalAccount) {
   if (typeof window !== 'undefined') localStorage.setItem(KEY, JSON.stringify(acct));
 }
+// Import a raw ed25519 secret key as the in-browser wallet (REPLACES the
+// stored key — the caller must warn the user). Hex case is normalized; the
+// derived public key determines the k: account.
+export function importLocalKey(secretHex: string): LocalAccount {
+  const sk = secretHex.trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(sk)) throw new Error('a secret key is 64 hex characters');
+  const pub = pubFromPriv(sk);
+  const acct: LocalAccount = { account: `k:${pub}`, publicKey: pub, secretKey: sk };
+  saveLocalKey(acct);
+  return acct;
+}
 // small helper so pco.ts stays self-contained
 import { ed25519 } from '@noble/curves/ed25519';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
