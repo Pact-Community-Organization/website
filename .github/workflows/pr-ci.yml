@@ -1,0 +1,59 @@
+# Verifies that a change still installs, typechecks, lints, and builds before it
+# reaches main.
+#
+# This repo had branch protection but no status checks, so pull requests — the
+# ten open Dependabot bumps included — could not be verified by anything except
+# a human reading the diff. A dependency bump that breaks the Next.js build was
+# indistinguishable from one that did not until it had already been merged and
+# deploy.yml had shipped it to the live site.
+#
+# The steps deliberately mirror deploy.yml (Node 20, the same build), so a green
+# run here means the deploy will build too. `npm ci` rather than `npm install`:
+# it is reproducible and fails loudly if package.json and the lockfile disagree.
+
+name: PR CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Install, typecheck, lint, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        # No `typecheck` script in package.json; next build does not fail on
+        # type errors under every config, so check explicitly.
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        # The step that actually catches a breaking dependency bump.
+        run: npm run build
