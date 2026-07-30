@@ -2,8 +2,10 @@
 //
 //   claim   — GASLESS: the on-chain gas station pays (station-sponsored, the
 //             ONLY sponsored action). Signed by the in-browser throwaway key.
-//   others  — SELF-PAID: transfer / cross-chain / vote / propose. Signed by the
-//             connected wallet, which pays its own coin.GAS.
+//   others  — SELF-PAID: transfer / cross-chain / vote / vote-key / rotate. Signed
+//             by the connected wallet, which pays its own coin.GAS. (Proposals are
+//             ADMIN-AUTHORED — PROPOSAL-OPS gates create/cancel to the gov or ops
+//             keyset — so this library deliberately exposes no propose path.)
 import { CFG, T, C, G, CHAINS, local, localOn, buildExec, submitAndPoll, cmdHash, signHash } from './chain';
 import { walletSign, type ConnectedWallet, type LocalAccount } from './wallets';
 
@@ -43,17 +45,29 @@ export async function alreadyClaimed(roundId: string, account: string): Promise<
 }
 // Ranked-choice questions: options + live Borda scores (a ballot ranking
 // option i at position p contributes weight*(K-p) points).
-export type Proposal = { pid: string; title: string; options: string[]; scores: number[]; turnout: number };
+// The AUTHORITATIVE result is the head-to-head record; the Borda `scores` are
+// kept only as a truncation diagnostic (ranking fewer options inflates them).
+export type Proposal = {
+  pid: string; title: string; options: string[]; scores: number[]; turnout: number;
+  h2h: { available: boolean; pairs: number[]; wins: number[]; condorcet: string };
+};
 export async function openProposals(): Promise<Proposal[]> {
   const ids = (await local(`(${T}.open-ids)`)) as string[];
   const out: Proposal[] = [];
   for (const pid of ids) {
     const r = (await local(`(${T}.get-results "${pid}")`)) as Record<string, unknown>;
+    const h = (await local(`(${T}.get-head-to-head "${pid}")`).catch(() => null)) as Record<string, unknown> | null;
     out.push({
       pid, title: String(r.title ?? ''),
       options: (r.options as string[]) ?? [],
       scores: ((r.scores as unknown[]) ?? []).map(dec),
       turnout: dec(r.turnout),
+      h2h: {
+        available: Boolean(h?.available),
+        pairs: ((h?.pairs as unknown[]) ?? []).map(dec),
+        wins: ((h?.wins as unknown[]) ?? []).map(dec),
+        condorcet: String(h?.condorcet ?? ''),
+      },
     });
   }
   return out;
@@ -104,6 +118,18 @@ export function transfer(w: ConnectedWallet, to: string, amount: string) {
     [{ name: `${T}.TRANSFER`, args: [w.account, to, { decimal: amount }] }],
     { rg: { keys: [to.slice(2)], pred: 'keys-all' } });
 }
+// DELIBERATELY NOT WIRED INTO THE UI. This submits step 0 of a two-step defpact:
+// it debits the source chain, and the credit only lands when someone submits the
+// continuation with an SPV proof on the TARGET chain. Nothing does that — not this
+// page, and not a relay we operate — so exposing it debits a holder and leaves the
+// tokens in a pending pact. The guide used to promise the continuation "is finished
+// automatically", which was false.
+// Kept here, unexposed, because the call itself is correct and a real relay is a
+// reasonable future feature: fetch the proof from the source chain's /spv endpoint
+// and submit the continuation on the target chain with the public
+// `kadena-xchain-gas` station as the gas payer (the holder will not have KDA
+// there). Do not re-export this to the UI until that path is proven end to end on
+// a real chain — a half-built relay strands funds more quietly than no relay.
 export function transferCrossChain(w: ConnectedWallet, to: string, targetChain: string, amount: string) {
   return selfPaid(w,
     `(${T}.transfer-crosschain "${w.account}" "${to}" (read-keyset 'rg) "${targetChain}" ${amount})`,
@@ -123,12 +149,14 @@ export function voteAs(w: ConnectedWallet, coldAccount: string, pid: string, ran
 // to VOTE-KEY-ADMIN). The hot key can then ONLY vote — nothing else.
 export function setVoteKey(w: ConnectedWallet, hotPubKey: string) {
   return selfPaid(w, `(${T}.set-vote-key "${w.account}" (read-keyset 'vk))`,
-    [{ name: `${T}.VOTE-KEY-ADMIN`, args: [w.account] }],
+    // the registered key's principal is IN the capability, so a substituted
+    // key changes what the wallet displays (audit F-12)
+    [{ name: `${T}.VOTE-KEY-ADMIN`, args: [w.account, `k:${hotPubKey}`] }],
     { vk: { keys: [hotPubKey], pred: 'keys-all' } });
 }
 export function clearVoteKey(w: ConnectedWallet) {
   return selfPaid(w, `(${T}.clear-vote-key "${w.account}")`,
-    [{ name: `${T}.VOTE-KEY-ADMIN`, args: [w.account] }]);
+    [{ name: `${T}.VOTE-KEY-ADMIN`, args: [w.account, ''] }]);
 }
 export async function voteKeyActive(account: string): Promise<boolean> {
   return Boolean(await local(`(at 'active (${T}.get-vote-key "${account}"))`).catch(() => false));
@@ -139,7 +167,10 @@ export async function voteKeyActive(account: string): Promise<boolean> {
 // the UI enforces this before building the transaction.
 export function rotate(w: ConnectedWallet, account: string, newPubKey: string) {
   return selfPaid(w, `(${T}.rotate "${account}" (read-keyset 'ng))`,
-    [{ name: `${T}.ROTATE`, args: [account] }],
+    // the DESTINATION guard's principal is IN the capability, so a hostile
+    // page cannot swap the data block and install another key under a
+    // signature the user verified (audit F-12)
+    [{ name: `${T}.ROTATE`, args: [account, `k:${newPubKey}`] }],
     { ng: { keys: [newPubKey], pred: 'keys-all' } });
 }
 // Read-only lookups — no wallet, no signature.

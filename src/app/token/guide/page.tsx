@@ -43,7 +43,7 @@ export default function TokenGuide() {
           <li><b>In-browser key</b> — a keypair generated inside your browser (the default). Zero setup, perfect for a first claim. <b>Download the key backup</b> — the key lives only in that browser&apos;s storage; clearing site data deletes it.</li>
           <li><b>EckoWallet</b> — browser extension. Must be on the site&apos;s network (see below).</li>
           <li><b>Zelcore</b> — desktop app. Log in first; the site talks to its local signing API.</li>
-          <li><b>Ledger</b> — hardware, via WebHID (Chrome/Edge/Brave; Kadena app open, hash signing enabled).</li>
+          <li><b>Ledger</b> — hardware, via WebHID (Chrome/Edge/Brave; Kadena app open). The page asks the device to <b>display</b> the transaction so you can check the recipient and amount on the device itself. Leave <b>blind signing off</b>: if the device shows only a hash it cannot tell you what you are approving, and this page will warn you before it continues.</li>
         </ul>
 
         <h2>2 · Claim — free, with any wallet</h2>
@@ -75,21 +75,22 @@ export default function TokenGuide() {
 
         <h2>3 · What is sponsored and what you pay</h2>
         <ul>
-          <li><b>Sponsored (free for you):</b> the claim. Nothing else — this keeps the community gas fund an onboarding fund that cannot be drained by routine activity.</li>
-          <li><b>Self-paid (ordinary gas from your wallet):</b> transfers, cross-chain transfers, voting, proposing, vote-key registration, guard rotation. Fees are tiny fractions of a KDA.</li>
+          <li><b>Sponsored (free for you):</b> the claim — the community gas fund exists to onboard newcomers who hold no KDA. It is capped at a fixed daily budget that refills each day, so it stays an onboarding fund.</li>
+          <li><b>Self-paid (ordinary gas from your wallet):</b> transfers, cross-chain transfers, voting, vote-key registration, guard rotation. Fees are tiny fractions of a KDA. (Questions are authored by the organization, not by holders — see below.)</li>
         </ul>
 
         <h2>4 · Transfers</h2>
         <ul>
           <li><b>Same-chain:</b> enter a <span className={styles.mono}>k:</span> recipient and an amount. Transfers are irreversible — check the recipient twice. A not-yet-existing recipient account is created bound to the key in its name; that is what makes <span className={styles.mono}>k:</span> accounts safe to send to.</li>
-          <li><b>Cross-chain:</b> PCO lives on all 20 Kadena chains; governance lives on chain 0 (the hub). A cross-chain send debits the source chain and, after the SPV proof settles, credits the target chain — the continuation is finished automatically.</li>
+          <li><b>Cross-chain sends are not offered here, on purpose.</b> The token supports them, but a cross-chain move is a two-step transfer: the first step debits the chain you are on, and the credit only lands when someone submits the second step with a proof on the target chain. This page does not do that, so offering it would take your PCO and leave it in a half-finished transfer. Claiming, awards and voting all live on chain 0 in any case, so there is nothing on another chain for PCO to do yet.</li>
         </ul>
 
         <h2 id="voting">5 · Governance — ranked-choice voting on admin-authored questions</h2>
         <ul>
           <li><b>Questions come from the organization; answers come from you.</b> Each on-chain question carries 2–5 named options. The community <b>suggests questions on the public channels</b> (Telegram / X) and the organization puts them on-chain — an accountable public step.</li>
-          <li><b>You vote by ranking the options</b> in order of preference (a partial ranking is fine). Tallies are live <b>Borda scores</b>: with K options, your first choice earns K points per token, the second K−1, and so on. The leading score is the community&apos;s preference; there is no quorum and <b>no vote executes anything on-chain</b>.</li>
-          <li>Voting weight is your <b>current hub-chain balance</b>; re-submitting replaces your ballot, and every balance decrease automatically shrinks your open ballots. Received tokens arrive unvoted.</li>
+          <li><b>You vote by ranking the options</b> in order of preference. A partial ranking is fine and costs you nothing — ranking more options can never hurt your favourite.</li>
+          <li><b>The result is head-to-head.</b> For every pair of options the contract records how much voting weight prefers one to the other, and the winner is the option that beats every other. If none does, that is published as a split rather than broken by an arbitrary rule. A Borda points row is shown too, but only as a completeness diagnostic — points reward ranking fewer options, so they are not the result.</li>
+          <li>Voting weight is your <b>current hub-chain balance</b>, and re-submitting replaces your ballot. If your balance ever falls <b>below</b> the weight recorded on an open ballot, that ballot is automatically trimmed to what you still hold — so you can never keep voting with tokens you no longer have. A decrease that still leaves you above your recorded weight changes nothing. Received tokens arrive unvoted.</li>
           <li>The organization can close a question early only with a <b>public on-chain reason</b>.</li>
         </ul>
         <h2 id="governance-design">Why can&apos;t holders create proposals directly?</h2>
