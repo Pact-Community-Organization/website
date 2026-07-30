@@ -10,7 +10,7 @@
 // buildExec); wallets only contribute signatures over OUR hash. DEVNET PREVIEW:
 // wallets must be pointed at the devnet network — adapters surface honest
 // errors when they are not.
-import { CFG, cmdHash, signHash, bytesToHex, type Cap } from './chain';
+import { CFG, cmdHash, signHash, verifyHashSig, bytesToHex, type Cap } from './chain';
 import { blake2b } from '@noble/hashes/blake2b';
 
 const NETWORK_ID = CFG.networkId;
@@ -159,7 +159,14 @@ export async function connectZelcore(): Promise<ConnectedWallet> {
 }
 
 // ---------------- Ledger (WebHID, loaded on demand) ----------------
-let ledgerApp: { transport?: { close?: () => Promise<void> }; getAddressAndPubKey: (p: string) => Promise<{ pubkey?: Uint8Array; publicKey?: Uint8Array }>; signHash: (p: string, h: string) => Promise<{ signature?: Uint8Array }> } | null = null;
+let ledgerApp: {
+  transport?: { close?: () => Promise<void> };
+  getAddressAndPubKey: (p: string) => Promise<{ pubkey?: Uint8Array; publicKey?: Uint8Array }>;
+  // clear-sign: the device parses and DISPLAYS the command blob
+  sign: (p: string, blob: Uint8Array) => Promise<{ signature?: Uint8Array }>;
+  // blind-sign fallback: the device shows only a digest
+  signHash: (p: string, h: string) => Promise<{ signature?: Uint8Array }>;
+} | null = null;
 export async function connectLedger(): Promise<ConnectedWallet> {
   if (!('hid' in navigator)) throw new Error('This browser has no WebHID (use Chrome/Edge/Brave) — Ledger unavailable');
   // Dynamic imports: Next code-splits these so the Ledger stack loads only
@@ -198,14 +205,58 @@ export async function connectLedger(): Promise<ConnectedWallet> {
   if (!pub || pub.length !== 64) throw new Error('Ledger returned no public key — open the Kadena app on the device');
   return {
     kind: 'ledger', label: 'Ledger', account: `k:${pub}`, publicKey: pub,
+    // CLEAR-SIGN FIRST. `sign(path, blob)` hands the device the FULL command so it
+    // can parse and render recipient / amount / chain / capabilities on its screen.
+    // `signHash` shows a bare 32-byte digest, which means the device cannot protect
+    // the user from a compromised page at all (the Bybit/Safe failure mode) — so it
+    // is a fallback only, and only behind an explicit acknowledgement.
     async sign(cmd) {
-      const r = await ledgerApp!.signHash(path, bytesToHex(hashBytes(cmd)));
-      const sig = r?.signature ? bytesToHex(new Uint8Array(r.signature)) : null;
-      if (!sig) throw new Error('Ledger did not sign (rejected on device, or blind signing disabled)');
-      return sig;
+      try {
+        const { Buffer } = await import('buffer');
+        const r = await ledgerApp!.sign(path, Buffer.from(cmd, 'utf8'));
+        const sig = r?.signature ? bytesToHex(new Uint8Array(r.signature)) : null;
+        if (sig) return sig;
+        throw new Error('device returned no signature');
+      } catch (e) {
+        const m = e instanceof Error ? e.message : String(e);
+        // A user rejection must NOT silently escalate to blind signing.
+        if (/reject|denied|cancel|0x6985|conditions of use/i.test(m)) {
+          throw new Error('Signing rejected on the Ledger.');
+        }
+        if (!(await confirmBlindSign())) {
+          throw new Error(
+            'Ledger could not display this transaction, and blind signing was declined. ' +
+            'Nothing was signed.',
+          );
+        }
+        const r = await ledgerApp!.signHash(path, bytesToHex(hashBytes(cmd)));
+        const sig = r?.signature ? bytesToHex(new Uint8Array(r.signature)) : null;
+        if (!sig) throw new Error('Ledger did not sign (rejected on device, or blind signing disabled)');
+        return sig;
+      }
     },
     disconnect() { ledgerApp?.transport?.close?.().catch(() => {}); ledgerApp = null; },
   };
+}
+
+// Blind-signing acknowledgement. The page MUST NOT fall back to hash-signing without
+// the user understanding that the device is showing them nothing. Replaceable by the
+// UI (setBlindSignConfirm) with a proper modal; the default refuses in a non-browser
+// context rather than signing blind.
+let blindSignConfirm: (() => Promise<boolean>) | null = null;
+export function setBlindSignConfirm(fn: (() => Promise<boolean>) | null) {
+  blindSignConfirm = fn;
+}
+async function confirmBlindSign(): Promise<boolean> {
+  if (blindSignConfirm) return blindSignConfirm();
+  if (typeof window === 'undefined') return false;
+  return window.confirm(
+    'BLIND SIGNING\n\n' +
+    'Your Ledger could not display this transaction, so it will show only a hash — ' +
+    'the device cannot show you what you are approving, and cannot protect you if this ' +
+    'page has been tampered with.\n\n' +
+    'Only continue if you trust this page right now. Continue?',
+  );
 }
 
 // ---------------- In-browser test key (the gasless-claim key) ----------------
@@ -217,9 +268,23 @@ export function connectLocalKey(acct: LocalAccount): ConnectedWallet {
   };
 }
 
-// Sign our unsigned command with the connected wallet; verify it covers OUR hash.
+// Sign our unsigned command with the connected wallet, then CRYPTOGRAPHICALLY VERIFY
+// that what came back really is a signature over OUR command hash by the account we
+// display as connected.
+//
+// (The previous version compared cmdHash(unsigned.cmd) against unsigned.hash — two
+// values produced from the same literal in buildExec, so the check could never fire,
+// and it ran after signing anyway. Audit finding: the comment claimed a control that
+// did not exist.)
 export async function walletSign(w: ConnectedWallet, unsigned: { cmd: string; hash: string }, capsHint: Cap[]): Promise<{ cmd: string; hash: string; sigs: { sig: string }[] }> {
+  if (cmdHash(unsigned.cmd) !== unsigned.hash) throw new Error('internal: command hash does not match its command');
   const sig = await w.sign(unsigned.cmd, unsigned.hash, capsHint);
-  if (cmdHash(unsigned.cmd) !== unsigned.hash) throw new Error('internal: command changed after hashing');
+  if (!verifyHashSig(unsigned.hash, sig, w.publicKey)) {
+    throw new Error(
+      `${w.label} returned a signature that does not cover this transaction under ` +
+      `${w.account.slice(0, 14)}… — nothing was submitted. Reconnect and try again; if it ` +
+      `repeats, do not retry on this page.`,
+    );
+  }
   return { cmd: unsigned.cmd, hash: unsigned.hash, sigs: [{ sig }] };
 }

@@ -5,7 +5,7 @@ import styles from '@/styles/token.module.css';
 import { CFG } from '@/lib/chain';
 import {
   loadOrCreateLocalKey, saveLocalKey, openRounds, alreadyClaimed, poolBalance, masterOpen,
-  balance, openProposals, myBallot, claim, transfer, transferCrossChain, vote,
+  balance, openProposals, myBallot, claim, transfer, vote,
   voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance, importLocalKey,
   type Round, type Proposal,
 } from '@/lib/pco';
@@ -34,7 +34,6 @@ export default function TokenApp() {
   const [rankings, setRankings] = useState<Record<string, number[]>>({});   // in-progress ranking per question
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
-  const [xchain, setXchain] = useState('');
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
   const [vkActive, setVkActive] = useState(false);
@@ -133,16 +132,14 @@ export default function TokenApp() {
   const AMOUNT_RE = /^\d+(\.\d{1,12})?$/;
   const validTo = /^k:[0-9a-f]{64}$/.test(to);
 
-  const doTransfer = async (direction: 'same' | 'x') => {
+  const doTransfer = async () => {
     if (!wallet) return say('Choose your wallet first (step 1).', 'err');
     if (!validTo) return say('Recipient must be a k: account (k: + 64 hex).', 'err');
     if (!AMOUNT_RE.test(amount) || Number(amount) <= 0) return say('Amount must be a positive number.', 'err');
     const amt = amount.includes('.') ? amount : `${amount}.0`;
-    if (direction === 'x' && (!/^([0-9]|1[0-9])$/.test(xchain) || xchain === CFG.chain)) return say('Cross-chain: pick a chain 0–19 that is not the current chain.', 'err');
     setBusy(true); say(`Sending ${amt} PCO (your wallet pays the gas)…`);
     try {
-      if (direction === 'x') { await transferCrossChain(wallet, to, xchain, amt); say(`Cross-chain send started to chain ${xchain}.`, 'ok'); }
-      else { await transfer(wallet, to, amt); say(`Sent ${amt} PCO.`, 'ok'); }
+      await transfer(wallet, to, amt); say(`Sent ${amt} PCO.`, 'ok');
       setTo(''); setAmount('');
     } catch (e) { say(`Transfer failed: ${(e as Error).message}`, 'err'); }
     setBusy(false); void refresh();
@@ -272,7 +269,7 @@ export default function TokenApp() {
             <p className={styles.mono}>{wallet.account}</p>
             <p>
               Holds: <b>{walletBal.toLocaleString()} PCO</b> · <b>{walletKda.toLocaleString(undefined, { maximumFractionDigits: 4 })} KDA</b>
-              {walletKda < 0.05 && <span className={styles.muted}> — self-paid actions (transfer/vote/propose) need a little KDA; claiming does not</span>}
+              {walletKda < 0.05 && <span className={styles.muted}> — self-paid actions (transfer/vote) need a little KDA; claiming does not</span>}
             </p>
             {wallet.kind === 'localkey' && (
               <>
@@ -369,16 +366,21 @@ export default function TokenApp() {
       {/* ---- Send ---- */}
       <section className={styles.card}>
         <h2>Send PCO</h2>
-        <p className={styles.muted}>Send to a k: account — double-check it, transfers are irreversible. Same-chain or cross-chain.</p>
+        <p className={styles.muted}>Send to a k: account — double-check it, transfers are irreversible.</p>
         <p><input placeholder="k:recipient account" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: '100%' }} /></p>
         <p>
           <input placeholder="amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          <button className={styles.btn} disabled={busy || !wallet} onClick={() => doTransfer('same')}>send (this chain)</button>
+          <button className={styles.btn} disabled={busy || !wallet} onClick={() => doTransfer()}>send</button>
         </p>
-        <p>
-          <label className={styles.muted}>cross-chain to chain <input placeholder="0–19" value={xchain} onChange={(e) => setXchain(e.target.value)} style={{ width: '4rem' }} /></label>
-          <button className={styles.btn} disabled={busy || !wallet} onClick={() => doTransfer('x')}>send cross-chain</button>
-        </p>
+        {/* A cross-chain send is DELIBERATELY not offered. It is a two-step
+            defpact: the first step debits the source chain, and the credit only
+            lands when someone submits the continuation with an SPV proof on the
+            target chain. Nothing does that — not this page, and not a relay we
+            control — so offering the button would debit a holder and leave the
+            tokens in a pending pact. Claiming, grants and governance are all
+            hub-only besides, so PCO moved off the hub can do nothing and cannot
+            return by any path this page offers. Do not wire it up again without
+            a continuation that has been proven end to end on a real chain. */}
       </section>
 
       {/* ---- Open questions (ranked-choice) ---- */}
@@ -405,11 +407,47 @@ export default function TokenApp() {
           return (
             <div key={p.pid} className={styles.proposal}>
               <h3>#{p.pid} — {p.title}</h3>
-              <p className={styles.muted}>
-                {p.options.map((o, i) => `${o}: ${p.scores[i]?.toLocaleString() ?? 0} pts`).join(' · ')}
-                {' '}— turnout {p.turnout.toLocaleString()}
-                {mine && <> — your ballot: <b>{mine.ranking.map((i) => p.options[i]).join(' › ')}</b> ({mine.weight})</>}
-              </p>
+              {/* THE RESULT: head-to-head. An option wins a duel when more
+                  voting weight prefers it to the other, and how much of a
+                  ballot a voter filled in cannot change their favourite's
+                  duels — which is why this, and not the points row, is the
+                  published outcome. */}
+              {p.h2h.available ? (
+                <>
+                  <p>
+                    <b>Head-to-head</b>{' '}
+                    {p.h2h.condorcet
+                      ? <>— <b>{p.h2h.condorcet}</b> beats every other option</>
+                      : <>— no option beats every other (the community is split)</>}
+                  </p>
+                  <p className={styles.muted}>
+                    {p.options.map((o, i) => `${o} beats ${p.h2h.wins[i] ?? 0} of ${p.options.length - 1}`).join(' · ')}
+                    {' '}— turnout {p.turnout.toLocaleString()} PCO
+                    {mine && <> — your ballot: <b>{mine.ranking.map((i) => p.options[i]).join(' › ')}</b> ({mine.weight})</>}
+                  </p>
+                  <details>
+                    <summary className={styles.muted}>every pair, and the points row</summary>
+                    <p className={styles.muted}>
+                      {p.options.flatMap((a, i) => p.options.map((b, j) => (i === j ? null :
+                        `${a} ${p.h2h.pairs[i * p.options.length + j] ?? 0} – ${p.h2h.pairs[j * p.options.length + i] ?? 0} ${b}`
+                      ))).filter(Boolean).join(' · ')}
+                    </p>
+                    <p className={styles.muted}>
+                      Borda points (a completeness diagnostic, not the result — ranking fewer
+                      options inflates them):{' '}
+                      {p.options.map((o, i) => `${o}: ${p.scores[i]?.toLocaleString() ?? 0}`).join(' · ')}
+                    </p>
+                  </details>
+                </>
+              ) : (
+                <p className={styles.muted}>
+                  {p.options.map((o, i) => `${o}: ${p.scores[i]?.toLocaleString() ?? 0} pts`).join(' · ')}
+                  {' '}— turnout {p.turnout.toLocaleString()}
+                  {mine && <> — your ballot: <b>{mine.ranking.map((i) => p.options[i]).join(' › ')}</b> ({mine.weight})</>}
+                  <br />This question was opened before head-to-head results existed, so only the
+                  points row is available for it.
+                </p>
+              )}
               <p>
                 {p.options.map((o, i) => (
                   <button key={i} className={styles.btn}

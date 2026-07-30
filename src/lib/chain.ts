@@ -37,10 +37,27 @@ export function cmdHash(cmd: string): string {
   return b64url(blake2b(new TextEncoder().encode(cmd), { dkLen: 32 }));
 }
 
-export function signHash(hashB64: string, privHex: string): string {
+const b64urlBytes = (hashB64: string): Uint8Array => {
   const pad = hashB64.replace(/-/g, '+').replace(/_/g, '/');
-  const bytes = Uint8Array.from(atob(pad), (c) => c.charCodeAt(0));
-  return bytesToHex(ed25519.sign(bytes, hexToBytes(privHex)));
+  return Uint8Array.from(atob(pad), (c) => c.charCodeAt(0));
+};
+
+export function signHash(hashB64: string, privHex: string): string {
+  return bytesToHex(ed25519.sign(b64urlBytes(hashB64), hexToBytes(privHex)));
+}
+
+// Verify that a signature returned by a wallet really covers OUR command hash under
+// the public key of the account we believe is connected. Without this the page will
+// happily POST any 128-hex string a wallet hands back and let the node reject it —
+// which turns "the wallet signed something else" into an opaque server error instead
+// of a precise local one.
+export function verifyHashSig(hashB64: string, sigHex: string, pubHex: string): boolean {
+  try {
+    if (!/^[0-9a-f]{128}$/i.test(sigHex) || !/^[0-9a-f]{64}$/i.test(pubHex)) return false;
+    return ed25519.verify(hexToBytes(sigHex), b64urlBytes(hashB64), hexToBytes(pubHex));
+  } catch {
+    return false;
+  }
 }
 
 export const num = (v: unknown): number =>
@@ -103,7 +120,16 @@ export async function submitAndPoll(signed: { cmd: string; hash: string; sigs: {
   });
   if (!send.ok) throw new Error(`send: ${send.status} ${await send.text()}`);
   const { requestKeys } = await send.json();
-  const rk = requestKeys[0];
+  const rk = requestKeys?.[0];
+  // The request key IS the command hash. A node that returns anything else is either
+  // broken or lying, and polling its key would report the outcome of a DIFFERENT
+  // transaction back to the user as if it were theirs.
+  if (rk !== signed.hash) {
+    throw new Error(
+      `node returned request key ${String(rk).slice(0, 16)}… for a transaction whose hash is ` +
+      `${signed.hash.slice(0, 16)}… — refusing to report its result. Do not trust this endpoint.`,
+    );
+  }
   for (let i = 0; i < 60; i++) {
     await new Promise((res) => setTimeout(res, 3000));
     const r = await fetch(`${API}/poll`, {
