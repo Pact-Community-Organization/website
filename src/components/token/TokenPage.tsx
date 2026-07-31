@@ -61,7 +61,7 @@ export default function TokenPage() {
         <ul>
           <li>
             <b><Link href="/token/guide">The user guide</Link></b> — step-by-step: claiming, wallet
-            setup (all four options, including the devnet network for EckoWallet), transfers,
+            setup (all four options), transfers,
             voting, the <Link href="/token/guide#voting-key">voting key</Link>, guard{' '}
             <Link href="/token/guide#rotate">rotation</Link>, and how to verify everything yourself.
           </li>

@@ -64,13 +64,12 @@ export default function TokenGuide() {
           wallet signs and pays a little KDA gas.
         </p>
         <p>
-          <b>EckoWallet network setup (devnet preview):</b> this preview build points at a local
-          development network. In EckoWallet: <i>Settings → Networks → add</i> — Name{' '}
-          <span className={styles.mono}>PCO devnet</span>, URL{' '}
-          <span className={styles.mono}>http://localhost:8090</span>, Network ID{' '}
-          <span className={styles.mono}>recap-development</span> — save it, select it as the active
-          network, then reconnect. (The launch build will point at Kadena mainnet, where no setup is
-          needed.)
+          <b>Wallet setup:</b> none needed. PCO is deployed on <b>Kadena mainnet</b>, so any
+          Kadena wallet already points at the right network — just connect. PCO lives in the
+          namespace{' '}
+          <span className={styles.mono}>n_57fcd6f7b72e8949af51a8d6f17fe12cc7719d10</span>, a{' '}
+          <i>principal</i> namespace whose name is derived from the governance keyset, so it cannot
+          be impersonated by a look-alike.
         </p>
 
         <h2>3 · What is sponsored and what you pay</h2>

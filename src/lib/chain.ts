@@ -1,22 +1,26 @@
-// chain.ts — minimal Kadena client for the PCO token page, pointed at DEVNET.
+// chain.ts — minimal Kadena client for the PCO token page, pointed at MAINNET.
 //
-// DEVNET PREVIEW BUILD: this targets the local devnet (recap-development,
-// localhost:8090). The mainnet block is staged and commented — a launch build
-// flips CFG. @noble-only crypto, direct fetch, no @kadena/client (keeps the
-// static export small; same pattern as the token repo's web/ bundle).
+// MAINNET BUILD (cut over 2026-07-31). PCO is deployed on mainnet01 across all
+// 20 chains; the devnet block below is kept for local development only.
+// @noble-only crypto, direct fetch, no @kadena/client (keeps the static export
+// small; same pattern as the token repo's web/ bundle).
+//
+// The namespace is a PRINCIPAL namespace: its name is a hash of the governance
+// keyset, so it is not an arbitrary string and cannot be typo'd into something
+// that exists. Verify it against the deployment record before changing it.
 import { ed25519 } from '@noble/curves/ed25519';
 import { blake2b } from '@noble/hashes/blake2b';
 import { bytesToHex as _hex, hexToBytes } from '@noble/hashes/utils';
 
 export const CFG = {
-  host: 'http://localhost:8090',
-  networkId: 'recap-development',
-  ns: 'user', // devnet: the v2 stack lives in `user`
+  host: 'https://api.chainweb-community.org',
+  networkId: 'mainnet01',
+  ns: 'n_57fcd6f7b72e8949af51a8d6f17fe12cc7719d10',
   chain: '0',
-  // --- MAINNET (staged; a launch build enables this) ---
-  // host: 'https://api.chainweb-community.org',
-  // networkId: 'mainnet01',
-  // ns: 'n_<derived>',
+  // --- DEVNET (local development only) ---
+  // host: 'http://localhost:8090',
+  // networkId: 'recap-development',
+  // ns: 'user',
   // chain: '0',
 };
 
@@ -33,8 +37,20 @@ export const bytesToHex = _hex;
 const b64url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
+/**
+ * Pact's `(hash x)` for a string: BLAKE2b-256, base64url, unpadded.
+ *
+ * Used for two unrelated things, which is why it is named for the operation
+ * rather than for either caller: the transaction hash (= the request key), and
+ * comparing a quest answer against a round's public `code-hash` without
+ * submitting anything.
+ */
+export function pactHash(s: string): string {
+  return b64url(blake2b(new TextEncoder().encode(s), { dkLen: 32 }));
+}
+
 export function cmdHash(cmd: string): string {
-  return b64url(blake2b(new TextEncoder().encode(cmd), { dkLen: 32 }));
+  return pactHash(cmd);
 }
 
 const b64urlBytes = (hashB64: string): Uint8Array => {
