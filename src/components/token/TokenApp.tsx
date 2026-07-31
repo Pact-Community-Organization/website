@@ -7,8 +7,7 @@ import {
   loadOrCreateLocalKey, saveLocalKey, openRounds, alreadyClaimed, poolBalance, masterOpen,
   balance, openProposals, myBallot, claim, transfer, vote,
   voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance, importLocalKey,
-  type Round, type Proposal,
-} from '@/lib/pco';
+  type Round, type Proposal, checkCode } from '@/lib/pco';
 import {
   connectEcko, connectZelcore, connectLedger, connectLocalKey, eckoAvailable,
   type ConnectedWallet, type LocalAccount,
@@ -81,7 +80,7 @@ export default function TokenApp() {
       const cold = localStorage.getItem('pco-votekey-cold') ?? '';
       setVkCold(cold && (await voteKeyActive(cold)) ? cold : '');
     } catch (e) {
-      say(`Cannot reach devnet: ${(e as Error).message}`, 'err');
+      say(`Cannot reach the network: ${(e as Error).message}`, 'err');
     }
   }, [key, roundId, wallet, destEdited, destAddr]);
 
@@ -104,6 +103,13 @@ export default function TokenApp() {
     if (!/^k:[0-9a-f]{64}$/.test(a)) return say('That is not a valid k: account — expected "k:" + 64 lowercase hex characters. Check for typos before claiming.', 'err');
     const dest = { account: a, publicKey: a.slice(2) };
     const destLabel = destEdited && a !== wallet.account ? `${a.slice(0, 14)}…` : `your ${wallet.label} account`;
+    // Check the answer BEFORE any spinner or network work. A wrong answer is
+    // caught here for free; submitting it would spend the gas station's float on
+    // a transaction that cannot succeed, and enough of those exhaust the daily
+    // sponsorship budget for people whose answer IS right.
+    if (!checkCode(round, code)) {
+      return say("That answer doesn't match this round — nothing was submitted, so try again freely.", 'err');
+    }
     setBusy(true); say(`Claiming "${round.id}" to ${destLabel} (the gas station pays the fee)…`);
     try { await claim(round, dest, k, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}…!`, 'ok'); setCode(''); }
     catch (e) { say(`Claim failed: ${(e as Error).message}`, 'err'); }
@@ -214,7 +220,7 @@ export default function TokenApp() {
   const backup = () => {
     if (!key) return;
     const blob = new Blob([JSON.stringify(key, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'pco-devnet-key.json'; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `pco-key-${CFG.networkId}.json`; a.click();
   };
   const restore = () => fileRef.current?.click();
   const onRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
