@@ -352,13 +352,24 @@ export default function TokenApp() {
           </select>
         </p>
         <p>
-          <input placeholder="engagement code" value={code} onChange={(e) => setCode(e.target.value)} />
+          <input placeholder="answer" value={code} onChange={(e) => setCode(e.target.value)} />
           <button className={styles.btn}
             disabled={busy || !open || !round || claimed || (destEdited && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()))}
             onClick={doClaim}>
             {round ? `claim ${round.amount} PCO` : 'claim'}
           </button>
         </p>
+        {/* Live feedback. The round's code hash is public chain data and the check
+            is local, so we can tell the user their answer is right BEFORE they
+            click — and a wrong one never becomes a transaction, so trying again
+            costs nothing and takes nothing from the sponsorship budget. */}
+        {round && code.trim() !== '' && (
+          <p className={styles.muted}>
+            {checkCode(round, code)
+              ? '✓ that matches — click claim'
+              : 'not a match yet. Answers are lowercase and trimmed for you; nothing is submitted until it matches, so guessing is free.'}
+          </p>
+        )}
         {claimed && (
           <p className={styles.muted}>
             {destEdited && destAddr.trim() !== wallet?.account ? `That address (${destAddr.trim().slice(0, 14)}…)` : `Your active wallet (${wallet?.account.slice(0, 14)}…)`} already
