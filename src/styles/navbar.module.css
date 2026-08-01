@@ -1,5 +1,14 @@
+/* The navbar is on every page, so its layout decides whether the whole SITE is
+   usable on a phone. It previously laid the links out as a single non-wrapping
+   flex row: on a 375px screen that produced a 907px-wide body — 2.4x the
+   viewport — with no horizontal scroll offered, so the page simply appeared
+   cut off and rotating to landscape was the only way to read it.
+   Wrapping (not a hamburger) is the fix: no JavaScript, nothing to open, and
+   every link stays reachable at any width. */
 .navbar {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem 4rem;
@@ -16,11 +25,13 @@
 
 .navLinks {
   display: flex;
+  flex-wrap: wrap;
+  /* `gap` rather than per-item margin: margins do not space WRAPPED rows, so a
+     second row would collide with the first. Row gap first, column gap second. */
+  gap: 0.5rem 2.5rem;
   list-style: none;
-}
-
-.navLinks li {
-  margin-left: 2.5rem;
+  margin: 0;
+  padding: 0;
 }
 
 .navLinks a {
@@ -33,4 +44,18 @@
 
 .navLinks a:hover {
   color: var(--text-link-hover);
+}
+
+/* Phones and small tablets. 4rem of side padding is 128px of a 375px screen —
+   a third of it — before any content is drawn. */
+@media (max-width: 720px) {
+  .navbar {
+    padding: 1rem 1.25rem;
+    justify-content: center;
+  }
+  .navLinks {
+    gap: 0.5rem 1.25rem;
+    justify-content: center;
+    width: 100%;
+  }
 }
