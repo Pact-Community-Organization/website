@@ -41,7 +41,7 @@ export default function TokenGuide() {
         </p>
         <ul>
                     <li><b>EckoWallet</b> — browser extension. Must be on the site&apos;s network (see below).</li>
-          <li><b>Zelcore</b> — desktop app. Log in first; the site talks to its local signing API.</li>
+          <li><b>Zelcore</b> — desktop app. Log in first; the site talks to its local signing API. <b>Not available in Safari:</b> Safari is the only browser that blocks a website from reaching a local app, so Zelcore cannot be connected there however it is configured — use Chrome, Brave or Edge for Zelcore, or claim with no wallet at all (see below).</li>
           <li><b>Ledger</b> — hardware, via WebHID (Chrome/Edge/Brave; Kadena app open). The page asks the device to <b>display</b> the transaction so you can check the recipient and amount on the device itself. Leave <b>blind signing off</b>: if the device shows only a hash it cannot tell you what you are approving, and this page will warn you before it continues.</li>
         </ul>
 
@@ -55,6 +55,8 @@ export default function TokenGuide() {
         <ul>
           <li>Pick the open claim round and answer its quest. Quests are published on the PCO channels together with the round id; the answer, normalized to lowercase, is the claim code.</li>
           <li>Claim. The gas station pays the fee; tokens land in your <b>active wallet&apos;s</b> account.</li>
+          <li><b>No wallet? You can still claim.</b> A claim carries no claimer signature — nothing of yours signs it — so you can paste any <span className={styles.mono}>k:</span> address into the receiving-address field and claim straight to it. This is the route for a hardware wallet kept in a safe, and for anyone whose browser cannot reach their wallet.</li>
+          <li><b>Where to see your PCO.</b> Most wallets list only KDA and well-known tokens, so yours may show nothing after a successful claim — a display limit, not a missing balance. The token page reads the balance from the chain itself, and every claim shows a transaction id you can check against any Kadena node or explorer.</li>
         </ul>
         <p>
           On-chain rules that keep this fair: <b>one claim per account per round</b>, a fixed budget
