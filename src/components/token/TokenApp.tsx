@@ -9,7 +9,7 @@ import {
   voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance,
   type Round, type Proposal, checkCode } from '@/lib/pco';
 import {
-  connectEcko, connectZelcore, connectLedger, eckoAvailable,
+  connectEcko, connectZelcore, connectLedger, eckoAvailable, zelcoreBlockedByBrowser,
   type ConnectedWallet,
 } from '@/lib/wallets';
 
@@ -47,6 +47,22 @@ export default function TokenApp() {
   const [rotKey, setRotKey] = useState('');
   const [lookup, setLookup] = useState('');
   const [lookupResult, setLookupResult] = useState<{ label: string; total?: number; perChain?: { chain: string; balance: number }[] } | null>(null);
+  // THE DESTINATION'S OWN ON-CHAIN BALANCE, shown whether or not a wallet is
+  // connected. A claim needs no wallet, so a user can (correctly) claim to a
+  // pasted address while connected to nothing — and until now the page then
+  // showed them NOTHING afterwards: the balance panel renders only for a
+  // connected wallet, and no ordinary wallet lists a namespaced token like PCO.
+  // A successful claim was therefore indistinguishable from a failed one, which
+  // is exactly how one got reported as "the funds were not sent". null = no
+  // valid address to read yet.
+  const [destBal, setDestBal] = useState<number | null>(null);
+  const [destNonce, setDestNonce] = useState(0);   // bump to force a re-read (e.g. after claiming)
+  // A durable record of the last claim — deliberately NOT the transient status
+  // line, which the next message overwrites. This is the user's evidence.
+  const [receipt, setReceipt] = useState<{ reqKey: string; amount: number; account: string; round: string } | null>(null);
+  // Detected after mount, never during render: reading navigator on the server
+  // would render one thing and the client another (see the Ecko note above).
+  const [safariZelcore, setSafariZelcore] = useState(false);
 
   const say = (msg: string, kind: Status extends null ? never : 'info' | 'ok' | 'err' = 'info') => setStatus({ msg, kind });
 
@@ -131,6 +147,41 @@ export default function TokenApp() {
   // always reads the current value without listing it as a dependency.
   useEffect(() => { destAddrRef.current = destAddr; }, [destAddr]);
 
+  // Deferred, not called in the effect body: setting state synchronously there
+  // is a cascading render, which is the rule the first-refresh effect below
+  // already dodges the same way.
+  useEffect(() => {
+    const t = setTimeout(() => setSafariZelcore(zelcoreBlockedByBrowser()), 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  // The destination balance gets its OWN effect rather than living in refresh().
+  // refresh() *writes* destAddr, so depending on destAddr there is the cascade
+  // that was removed earlier; this effect only READS destAddr and writes a
+  // different piece of state, so it cannot feed itself. Debounced so typing an
+  // address does not fire a request per keystroke.
+  useEffect(() => {
+    const a = destAddr.trim();
+    const sel = rounds.find((r) => r.id === roundId) ?? rounds[0];
+    let live = true;
+    // Everything, including clearing the figure for a half-typed address, happens
+    // inside the timer: no setState runs synchronously in the effect body.
+    const t = setTimeout(() => {
+      if (!live) return;
+      if (!/^k:[0-9a-f]{64}$/.test(a)) { setDestBal(null); return; }
+      // balance() already maps a not-yet-existing account to 0, so a fresh
+      // address reads as 0 rather than throwing.
+      balance(a).then((b) => { if (live) setDestBal(b); }).catch(() => { if (live) setDestBal(null); });
+      // Settle "has this DESTINATION already claimed this round?" here too.
+      // refresh() cannot answer it without a wallet — it has no identity to ask
+      // about — so it left the button enabled for an address that had already
+      // claimed. Clicking then spent gas-station float on a transaction that
+      // could only fail, which is the very waste the local answer-check avoids.
+      if (sel) alreadyClaimed(sel.id, a).then((c) => { if (live) setClaimed(c); }).catch(() => {});
+    }, 400);
+    return () => { live = false; clearTimeout(t); };
+  }, [destAddr, destNonce, roundId, rounds]);
+
   const selectedRound = () => rounds.find((r) => r.id === roundId) ?? rounds[0];
 
   const doClaim = async () => {
@@ -159,7 +210,17 @@ export default function TokenApp() {
       return say("That answer doesn't match this round — nothing was submitted, so try again freely.", 'err');
     }
     setBusy(true); say(`Claiming "${round.id}" to ${destLabel} (the gas station pays the fee — nothing to sign)…`);
-    try { await claim(round, dest, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}…!`, 'ok'); setCode(''); }
+    try {
+      // Keep the RESULT. It carries the request key — the transaction's
+      // permanent on-chain identifier — and throwing it away left a user whose
+      // claim had genuinely succeeded with no way to demonstrate that.
+      const res = await claim(round, dest, code.trim().toLowerCase());
+      const reqKey = String((res as { reqKey?: unknown }).reqKey ?? '');
+      setReceipt({ reqKey, amount: round.amount, account: a, round: round.id });
+      say(`Claimed ${round.amount} PCO to ${a.slice(0, 14)}…!`, 'ok');
+      setCode('');
+      setDestNonce((n) => n + 1);   // re-read the destination so the new balance shows
+    }
     catch (e) { say(`Claim failed: ${(e as Error).message}`, 'err'); }
     setBusy(false); void refresh();
   };
@@ -297,6 +358,16 @@ export default function TokenApp() {
             Ledger{wallet?.kind === 'ledger' && ' ✓'}
           </button>
         </p>
+        {safariZelcore && (
+          <p className={styles.muted}>
+            <b>Using Safari?</b> Safari blocks this page from reaching Zelcore — it is the only browser
+            that stops an HTTPS page from calling a local app, so the connection fails even with Zelcore
+            open and logged in. Connect Zelcore in Chrome, Brave or Edge instead — or simply{' '}
+            <b>claim without a wallet</b>: claiming needs no signature, so paste your{' '}
+            <span className={styles.mono}>k:</span> address in the receiving-address field below.
+            (EckoWallet and Ledger are unaffected.)
+          </p>
+        )}
         {wallet && (
           <>
             <p>
@@ -365,6 +436,16 @@ export default function TokenApp() {
             <button className={styles.btn} onClick={() => { setDestEdited(false); setDestAddr(wallet.account); }}>use my active wallet instead</button>
           </p>
         )}
+        {/* The destination's OWN balance, read live from the chain, shown with or
+            without a connected wallet. This is the only place a claimer without a
+            wallet can see that their tokens exist. */}
+        {destBal !== null && (
+          <p>
+            <span className={styles.mono}>{destAddr.trim().slice(0, 14)}…</span> holds{' '}
+            <b>{destBal.toLocaleString()} PCO</b> on <b>chain {CFG.chain}</b>
+            <span className={styles.muted}> — read from the chain just now, not from your wallet.</span>
+          </p>
+        )}
         <p className={styles.muted}>{pool.toLocaleString()} PCO left in the pool</p>
         <p className={styles.muted}>Pick a round and answer its community quest (published on the PCO channels with its round id):</p>
         <p>
@@ -380,6 +461,34 @@ export default function TokenApp() {
             {round ? `claim ${round.amount} PCO` : 'claim'}
           </button>
         </p>
+        {/* CLAIM RECEIPT — durable, unlike the status line, which the next message
+            overwrites. A claimer with no connected wallet previously got a
+            momentary "Claimed…" and nothing else: no balance (that panel needs a
+            wallet) and no transaction. Since ordinary wallets do not list a
+            namespaced token like PCO, their wallet showed nothing either, so a
+            successful claim looked exactly like a failed one. */}
+        {receipt && (
+          <div className={styles.info}>
+            <h3>✓ Claimed {receipt.amount.toLocaleString()} PCO — round &quot;{receipt.round}&quot;</h3>
+            <p>
+              Sent to <span className={styles.mono}>{receipt.account}</span> on <b>chain {CFG.chain}</b>.
+              <button className={styles.btn} onClick={() => { navigator.clipboard?.writeText(receipt.account).then(() => say('Address copied.', 'ok')).catch(() => say(receipt.account)); }}>copy address</button>
+            </p>
+            {receipt.reqKey && (
+              <p>
+                Transaction: <span className={styles.mono}>{receipt.reqKey}</span>
+                <button className={styles.btn} onClick={() => { navigator.clipboard?.writeText(receipt.reqKey).then(() => say('Transaction id copied.', 'ok')).catch(() => say(receipt.reqKey)); }}>copy</button>
+              </p>
+            )}
+            <p className={styles.muted}>
+              This transaction is final on Kadena mainnet. Its id (the request key) is permanent — anyone
+              can check it against any Kadena node or explorer, and it is proof independent of this page.
+              If your wallet does not show the PCO, that is a wallet display limit: most wallets list only
+              KDA and well-known tokens, not a namespaced one like PCO. The balance above comes from the
+              chain itself.
+            </p>
+          </div>
+        )}
         {/* Live feedback. The round's code hash is public chain data and the check
             is local, so we can tell the user their answer is right BEFORE they
             click — and a wrong one never becomes a transaction, so trying again
@@ -393,7 +502,7 @@ export default function TokenApp() {
         )}
         {claimed && (
           <p className={styles.muted}>
-            {destEdited && destAddr.trim() !== wallet?.account ? `That address (${destAddr.trim().slice(0, 14)}…)` : `Your active wallet (${wallet?.account.slice(0, 14)}…)`} already
+            {destEdited && destAddr.trim() !== wallet?.account ? `That address (${destAddr.trim().slice(0, 14)}…)` : `Your active wallet (${wallet?.account.slice(0, 14)}…)`}{' '}already
             claimed round &quot;{round?.id}&quot; — one claim per account per round; it holds those tokens.
             {rounds.length > 1 && ' Other open rounds are still claimable.'}
             {' '}A different destination can still claim this round.
