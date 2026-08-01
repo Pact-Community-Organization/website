@@ -259,14 +259,12 @@ export function saveLocalKey(acct: LocalAccount) {
 // Import a raw ed25519 secret key as the in-browser wallet (REPLACES the
 // stored key — the caller must warn the user). Hex case is normalized; the
 // derived public key determines the k: account.
-export function importLocalKey(secretHex: string): LocalAccount {
-  const sk = secretHex.trim().toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(sk)) throw new Error('a secret key is 64 hex characters');
-  const pub = pubFromPriv(sk);
-  const acct: LocalAccount = { account: `k:${pub}`, publicKey: pub, secretKey: sk };
-  saveLocalKey(acct);
-  return acct;
-}
+// importLocalKey was REMOVED (2026-08-01). It backed a "paste a secret key here"
+// field on the token page — the exact shape of a wallet-drainer phishing form.
+// Shipping one on an official site teaches the habit that gets people robbed on
+// a fake one. The browser key is generated here and backed up to a file this
+// page produces; there is no legitimate reason to accept pasted key material.
+// Do not reintroduce it.
 // small helper so pco.ts stays self-contained
 import { ed25519 } from '@noble/curves/ed25519';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';

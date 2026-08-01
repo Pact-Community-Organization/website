@@ -6,7 +6,7 @@ import { CFG } from '@/lib/chain';
 import {
   loadOrCreateLocalKey, saveLocalKey, openRounds, alreadyClaimed, poolBalance, masterOpen,
   balance, openProposals, myBallot, claim, transfer, vote,
-  voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance, importLocalKey,
+  voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance,
   type Round, type Proposal, checkCode } from '@/lib/pco';
 import {
   connectEcko, connectZelcore, connectLedger, connectLocalKey, eckoAvailable,
@@ -41,7 +41,6 @@ export default function TokenApp() {
   const [walletKda, setWalletKda] = useState(0);
   const [destAddr, setDestAddr] = useState('');
   const [destEdited, setDestEdited] = useState(false);   // user typed their own receiving address
-  const [secretIn, setSecretIn] = useState('');
   const [rotAccount, setRotAccount] = useState('');
   const [rotKey, setRotKey] = useState('');
   const [lookup, setLookup] = useState('');
@@ -274,8 +273,11 @@ export default function TokenApp() {
             </p>
             <p className={styles.mono}>{wallet.account}</p>
             <p>
-              Holds: <b>{walletBal.toLocaleString()} PCO</b> · <b>{walletKda.toLocaleString(undefined, { maximumFractionDigits: 4 })} KDA</b>
-              {walletKda < 0.05 && <span className={styles.muted}> — self-paid actions (transfer/vote) need a little KDA; claiming does not</span>}
+              {/* Kadena balances are PER CHAIN. An unqualified "Holds: 0 KDA" reads as
+                  "you have no KDA", when the user may hold plenty on another chain — and
+                  then the advice to fund it is wrong. Name the chain. */}
+              Holds on <b>chain {CFG.chain}</b>: <b>{walletBal.toLocaleString()} PCO</b> · <b>{walletKda.toLocaleString(undefined, { maximumFractionDigits: 4 })} KDA</b>
+              {walletKda < 0.05 && <span className={styles.muted}> — self-paid actions (transfer/vote) need a little KDA <i>on this chain</i>; claiming does not. KDA held on another Kadena chain has to be moved here first.</span>}
             </p>
             {wallet.kind === 'localkey' && (
               <>
@@ -285,16 +287,17 @@ export default function TokenApp() {
                   <button className={styles.btn} onClick={restore}>restore from backup</button>
                   <input ref={fileRef} type="file" accept="application/json" hidden onChange={onRestore} />
                 </p>
-                <p>
-                  <input placeholder="import a secret key (64 hex) to sign with it" value={secretIn} onChange={(e) => setSecretIn(e.target.value)} style={{ width: '70%' }} />
-                  <button className={styles.btn} disabled={busy || !secretIn.trim()} onClick={() => {
-                    try {
-                      const a = importLocalKey(secretIn);
-                      setKey(a); setWallet(connectLocalKey(a)); setSecretIn('');
-                      say('Secret key imported — it is now the active in-browser wallet. (It replaced the previous browser key; a downloaded backup still restores that one.)', 'ok');
-                    } catch (e) { say(`Import failed: ${(e as Error).message}`, 'err'); }
-                  }}>import</button>
-                </p>
+                  {/* There was a "paste a secret key here" field. It is gone, and
+                      nothing like it should return. A text box asking for private key
+                      material is the exact shape of every wallet-drainer phishing page,
+                      and putting one on an official site teaches the habit that gets
+                      people robbed on a fake one. Restoring from a backup file this
+                      page itself produced is a different act and stays. */}
+                  <p className={styles.muted}>
+                    <b>PCO will never ask for your seed phrase or a private key.</b> Not here,
+                    not by message, not ever. Anyone asking for one is not us — including a
+                    page that looks exactly like this one.
+                  </p>
               </>
             )}
             {wallet.kind !== 'localkey' && (
