@@ -260,20 +260,11 @@ export async function lookupAllChains(account: string): Promise<{ total: number;
   return { total: perChain.reduce((s, b) => s + b.balance, 0), perChain };
 }
 
-// Namespaced by network: a devnet preview key has no meaning on mainnet, and
-// letting them share a slot would silently hand a mainnet user a devnet key.
-const KEY = `pco-key-${CFG.networkId}`;
-// importLocalKey was REMOVED (2026-08-01). It backed a "paste a secret key here"
-// field on the token page — the exact shape of a wallet-drainer phishing form.
-// Shipping one on an official site teaches the habit that gets people robbed on
-// a fake one. The browser key is generated here and backed up to a file this
-// page produces; there is no legitimate reason to accept pasted key material.
-// Do not reintroduce it.
-// small helper so pco.ts stays self-contained
-import { ed25519 } from '@noble/curves/ed25519';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
-function pubFromPriv(privHex: string): string {
-  return bytesToHex(ed25519.getPublicKey(hexToBytes(privHex)));
-}
+// The in-browser key, its localStorage slot, its backup/restore and its import
+// path were all REMOVED (2026-08-01). This page does not generate, store,
+// import or sign with private keys of its own. The only key it ever creates is
+// the ephemeral gas-station signer in chain.ts: in memory, authorises a fee and
+// nothing else, gone when the tab closes.
+// Do not reintroduce browser-held key material.
 
 export { CFG, cmdHash };

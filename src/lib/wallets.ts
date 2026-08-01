@@ -9,7 +9,7 @@
 // buildExec); wallets only contribute signatures over OUR hash. DEVNET PREVIEW:
 // wallets must be pointed at the devnet network — adapters surface honest
 // errors when they are not.
-import { CFG, cmdHash, signHash, verifyHashSig, bytesToHex, type Cap } from './chain';
+import { CFG, cmdHash, verifyHashSig, bytesToHex, type Cap } from './chain';
 import { blake2b } from '@noble/hashes/blake2b';
 
 const NETWORK_ID = CFG.networkId;
