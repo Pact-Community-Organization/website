@@ -1,13 +1,13 @@
 // pco.ts — the PCO token actions for the page.
 //
-//   claim   — GASLESS: the on-chain gas station pays (station-sponsored, the
-//             ONLY sponsored action). Signed by the connected wallet, which
-//             authorises the station and needs no KDA of its own.
+//   claim   — GASLESS and SIGNATURE-FREE for the user: the on-chain gas station
+//             pays (the ONLY sponsored action), authorised by an ephemeral
+//             in-memory key. No wallet prompt, no device, no KDA.
 //   others  — SELF-PAID: transfer / cross-chain / vote / vote-key / rotate. Signed
 //             by the connected wallet, which pays its own coin.GAS. (Proposals are
 //             ADMIN-AUTHORED — PROPOSAL-OPS gates create/cancel to the gov or ops
 //             keyset — so this library deliberately exposes no propose path.)
-import { CFG, T, C, G, CHAINS, local, localOn, buildExec, submitAndPoll, cmdHash, pactHash, signHash } from './chain';
+import { CFG, T, C, G, CHAINS, local, localOn, buildExec, submitAndPoll, cmdHash, pactHash, signHash, ephemeralGasSigner } from './chain';
 import { walletSign, type ConnectedWallet } from './wallets';
 
 // ---------- reads ----------
@@ -87,11 +87,7 @@ export async function myBallot(pid: string, account: string): Promise<{ ranking:
   return { ranking: ((r.ranking as unknown[]) ?? []).map(dec), weight: dec(r.weight) };
 }
 
-// ---------- claim (GASLESS, station-sponsored) ----------
-// dest may be the browser key OR any k: account (e.g. the connected wallet):
-// claims need NO signature from the claimer by design — tokens can only land
-// in the account canonically bound to the supplied guard. The browser key
-// signs only the station's GAS_PAYER capability.
+// ---------- claim (GASLESS, station-sponsored, no user signature) ----------
 /** Normalize an answer the way the round's code hash was computed: trim, lowercase. */
 export function normalizeCode(raw: string): string {
   return raw.trim().toLowerCase();
@@ -124,56 +120,30 @@ export function checkCode(round: Round, raw: string): boolean {
 }
 
 /**
- * Claim a round. GASLESS: the station pays the gas — the wallet only AUTHORISES
- * that by signing the station's GAS_PAYER capability. The signer therefore needs
- * no KDA of its own, which is the whole point of sponsored onboarding.
+ * Claim a round. THE USER SIGNS NOTHING.
  *
- * The signer is the connected EXTERNAL wallet (2026-08-01). It used to be a key
- * this page generated and stored in localStorage; that was a testing affordance
- * and it is gone. A site that mints private keys for you, keeps them in browser
- * storage, and asks you to back them up is teaching a habit that does not
- * survive contact with a phishing clone of itself.
+ * Claims carry no claimer signature by design: tokens can only land in the
+ * account canonically bound to the guard supplied with the claim, so proving who
+ * you are is unnecessary. What the transaction DOES need is a signer declaring
+ * the station's GAS_PAYER capability — that is how the node knows to open the
+ * station's guard and let it pay the fee.
  *
- * `dest` may be any k: account — claims carry NO claimer signature by design, so
- * tokens can only land in the account canonically bound to the supplied guard.
+ * That signer is an EPHEMERAL key held only in memory (see ephemeralGasSigner).
+ * It authorises a fee payment and nothing else, so it does not matter who holds
+ * it, and it is gone when the tab closes.
+ *
+ * Result: no wallet popup, no device, no KDA. Type the answer and click.
+ *
+ * Two other designs were tried on the way here and both were worse. A PERSISTED
+ * browser key did the same job but had to be backed up, restored and imported —
+ * which is exactly the surface a phishing clone imitates. Making the connected
+ * wallet sign removed that surface but put a prompt in front of every claim, for
+ * a signature that only ever said "the station may pay this fee".
+ *
+ * `dest` may be any k: account: the connected wallet, or an address pasted from
+ * a hardware wallet that never comes online.
  */
-/**
- * DEV-ONLY: prove a wallet will sign the sponsored claim shape, WITHOUT claiming.
- *
- * The one thing that cannot be checked by typecheck or build is whether each
- * wallet adapter signs a transaction whose SENDER is the gas station rather than
- * itself. That is the sponsored shape, it is normal, and walletSign is
- * sender-agnostic — but "should work" is not evidence, and the claim path is the
- * one every user takes on a launched token.
- *
- * This builds the byte-identical transaction `claim()` would build, asks the
- * wallet to sign it, verifies the signature covers that exact hash under the
- * wallet's own key, and then throws it away. Nothing is submitted, no claim slot
- * is consumed, no gas is spent, and the round is untouched.
- *
- * Exposed on window only in development (see TokenApp); `next build` sets
- * NODE_ENV=production, so it cannot reach the deployed site.
- */
-export async function dryRunClaimSignature(
-  round: Round, dest: { account: string; publicKey: string }, signer: ConnectedWallet, code: string,
-): Promise<{ ok: true; hash: string; sig: string; station: string }> {
-  const submitted = normalizeCode(code);
-  const station = await stationAccount();
-  const gasPayerCap = { name: `${G}.GAS_PAYER`, args: ['web', { int: 6000 }, { decimal: '0.0000001' }] };
-  const { cmd, hash } = buildExec({
-    code: `(${C}.claim "${round.id}" "${dest.account}" (read-keyset 'ks) "${submitted}")`,
-    data: { ks: { keys: [dest.publicKey], pred: 'keys-all' } },
-    sender: station,
-    signers: [{ pubKey: signer.publicKey, caps: [gasPayerCap] }],
-    gasLimit: 6000, gasPrice: 1e-8,
-  });
-  // walletSign throws if the returned signature does not cover this hash under
-  // the wallet's key, so reaching the end IS the proof.
-  const signed = await walletSign(signer, { cmd, hash }, [gasPayerCap]);
-  return { ok: true, hash, sig: signed.sigs[0].sig, station };
-}
-
-export async function claim(round: Round, dest: { account: string; publicKey: string }, signer: ConnectedWallet, code: string): Promise<Record<string, unknown>> {
+export async function claim(round: Round, dest: { account: string; publicKey: string }, code: string): Promise<Record<string, unknown>> {
   // Refuse locally before building anything. See checkCode().
   if (!checkCode(round, code)) {
     throw new Error("That answer doesn't match this round. Check it and try again — nothing was submitted.");
@@ -186,20 +156,15 @@ export async function claim(round: Round, dest: { account: string; publicKey: st
   // matched.
   const submitted = normalizeCode(code);
   const station = await stationAccount();
-  const gasPayerCap = { name: `${G}.GAS_PAYER`, args: ['web', { int: 6000 }, { decimal: '0.0000001' }] };
+  const eph = ephemeralGasSigner();
   const { cmd, hash } = buildExec({
     code: `(${C}.claim "${round.id}" "${dest.account}" (read-keyset 'ks) "${submitted}")`,
     data: { ks: { keys: [dest.publicKey], pred: 'keys-all' } },
     sender: station,
-    signers: [{ pubKey: signer.publicKey, caps: [gasPayerCap] }],
+    signers: [{ pubKey: eph.publicKey, caps: [{ name: `${G}.GAS_PAYER`, args: ['web', { int: 6000 }, { decimal: '0.0000001' }] }] }],
     gasLimit: 6000, gasPrice: 1e-8,
   });
-  // The wallet signs a transaction whose SENDER is the station, not itself. That
-  // is the sponsored shape and it is normal; walletSign verifies the returned
-  // signature covers this exact hash under the wallet's own key before anything
-  // is submitted.
-  const signed = await walletSign(signer, { cmd, hash }, [gasPayerCap]);
-  return submitAndPoll(signed);
+  return submitAndPoll({ cmd, hash, sigs: [{ sig: signHash(hash, eph.secretKey) }] });
 }
 
 export async function kdaBalance(account: string): Promise<number> {
