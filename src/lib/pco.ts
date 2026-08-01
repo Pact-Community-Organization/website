@@ -1,13 +1,14 @@
 // pco.ts — the PCO token actions for the page.
 //
-//   claim   — GASLESS: the on-chain gas station pays (station-sponsored, the
-//             ONLY sponsored action). Signed by the in-browser throwaway key.
+//   claim   — GASLESS and SIGNATURE-FREE for the user: the on-chain gas station
+//             pays (the ONLY sponsored action), authorised by an ephemeral
+//             in-memory key. No wallet prompt, no device, no KDA.
 //   others  — SELF-PAID: transfer / cross-chain / vote / vote-key / rotate. Signed
 //             by the connected wallet, which pays its own coin.GAS. (Proposals are
 //             ADMIN-AUTHORED — PROPOSAL-OPS gates create/cancel to the gov or ops
 //             keyset — so this library deliberately exposes no propose path.)
-import { CFG, T, C, G, CHAINS, local, localOn, buildExec, submitAndPoll, cmdHash, pactHash, signHash } from './chain';
-import { walletSign, type ConnectedWallet, type LocalAccount } from './wallets';
+import { CFG, T, C, G, CHAINS, local, localOn, buildExec, submitAndPoll, cmdHash, pactHash, signHash, ephemeralGasSigner } from './chain';
+import { walletSign, type ConnectedWallet } from './wallets';
 
 // ---------- reads ----------
 export type Round = { id: string; amount: number; budget: number; claimed: number; opens: string; closes: string; active: boolean; codeHash: string };
@@ -86,11 +87,7 @@ export async function myBallot(pid: string, account: string): Promise<{ ranking:
   return { ranking: ((r.ranking as unknown[]) ?? []).map(dec), weight: dec(r.weight) };
 }
 
-// ---------- claim (GASLESS, station-sponsored) ----------
-// dest may be the browser key OR any k: account (e.g. the connected wallet):
-// claims need NO signature from the claimer by design — tokens can only land
-// in the account canonically bound to the supplied guard. The browser key
-// signs only the station's GAS_PAYER capability.
+// ---------- claim (GASLESS, station-sponsored, no user signature) ----------
 /** Normalize an answer the way the round's code hash was computed: trim, lowercase. */
 export function normalizeCode(raw: string): string {
   return raw.trim().toLowerCase();
@@ -122,7 +119,31 @@ export function checkCode(round: Round, raw: string): boolean {
   return pactHash(normalizeCode(raw)) === round.codeHash;
 }
 
-export async function claim(round: Round, dest: { account: string; publicKey: string }, signer: LocalAccount, code: string): Promise<Record<string, unknown>> {
+/**
+ * Claim a round. THE USER SIGNS NOTHING.
+ *
+ * Claims carry no claimer signature by design: tokens can only land in the
+ * account canonically bound to the guard supplied with the claim, so proving who
+ * you are is unnecessary. What the transaction DOES need is a signer declaring
+ * the station's GAS_PAYER capability — that is how the node knows to open the
+ * station's guard and let it pay the fee.
+ *
+ * That signer is an EPHEMERAL key held only in memory (see ephemeralGasSigner).
+ * It authorises a fee payment and nothing else, so it does not matter who holds
+ * it, and it is gone when the tab closes.
+ *
+ * Result: no wallet popup, no device, no KDA. Type the answer and click.
+ *
+ * Two other designs were tried on the way here and both were worse. A PERSISTED
+ * browser key did the same job but had to be backed up, restored and imported —
+ * which is exactly the surface a phishing clone imitates. Making the connected
+ * wallet sign removed that surface but put a prompt in front of every claim, for
+ * a signature that only ever said "the station may pay this fee".
+ *
+ * `dest` may be any k: account: the connected wallet, or an address pasted from
+ * a hardware wallet that never comes online.
+ */
+export async function claim(round: Round, dest: { account: string; publicKey: string }, code: string): Promise<Record<string, unknown>> {
   // Refuse locally before building anything. See checkCode().
   if (!checkCode(round, code)) {
     throw new Error("That answer doesn't match this round. Check it and try again — nothing was submitted.");
@@ -135,14 +156,15 @@ export async function claim(round: Round, dest: { account: string; publicKey: st
   // matched.
   const submitted = normalizeCode(code);
   const station = await stationAccount();
+  const eph = ephemeralGasSigner();
   const { cmd, hash } = buildExec({
     code: `(${C}.claim "${round.id}" "${dest.account}" (read-keyset 'ks) "${submitted}")`,
     data: { ks: { keys: [dest.publicKey], pred: 'keys-all' } },
     sender: station,
-    signers: [{ pubKey: signer.publicKey, caps: [{ name: `${G}.GAS_PAYER`, args: ['web', { int: 6000 }, { decimal: '0.0000001' }] }] }],
+    signers: [{ pubKey: eph.publicKey, caps: [{ name: `${G}.GAS_PAYER`, args: ['web', { int: 6000 }, { decimal: '0.0000001' }] }] }],
     gasLimit: 6000, gasPrice: 1e-8,
   });
-  return submitAndPoll({ cmd, hash, sigs: [{ sig: signHash(hash, signer.secretKey) }] });
+  return submitAndPoll({ cmd, hash, sigs: [{ sig: signHash(hash, eph.secretKey) }] });
 }
 
 export async function kdaBalance(account: string): Promise<number> {
@@ -238,38 +260,11 @@ export async function lookupAllChains(account: string): Promise<{ total: number;
   return { total: perChain.reduce((s, b) => s + b.balance, 0), perChain };
 }
 
-// ---------- in-browser test key (localStorage; the gasless-claim identity) ----------
-// Namespaced by network: a devnet preview key has no meaning on mainnet, and
-// letting them share a slot would silently hand a mainnet user a devnet key.
-const KEY = `pco-key-${CFG.networkId}`;
-export function loadOrCreateLocalKey(): LocalAccount {
-  if (typeof window === 'undefined') return { account: '', publicKey: '', secretKey: '' };
-  const stored = localStorage.getItem(KEY);
-  if (stored) return JSON.parse(stored);
-  // generate via @noble in the browser
-  const priv = Array.from(crypto.getRandomValues(new Uint8Array(32))).map((b) => b.toString(16).padStart(2, '0')).join('');
-  const pub = pubFromPriv(priv);
-  const acct: LocalAccount = { account: `k:${pub}`, publicKey: pub, secretKey: priv };
-  localStorage.setItem(KEY, JSON.stringify(acct));
-  return acct;
-}
-export function saveLocalKey(acct: LocalAccount) {
-  if (typeof window !== 'undefined') localStorage.setItem(KEY, JSON.stringify(acct));
-}
-// Import a raw ed25519 secret key as the in-browser wallet (REPLACES the
-// stored key — the caller must warn the user). Hex case is normalized; the
-// derived public key determines the k: account.
-// importLocalKey was REMOVED (2026-08-01). It backed a "paste a secret key here"
-// field on the token page — the exact shape of a wallet-drainer phishing form.
-// Shipping one on an official site teaches the habit that gets people robbed on
-// a fake one. The browser key is generated here and backed up to a file this
-// page produces; there is no legitimate reason to accept pasted key material.
-// Do not reintroduce it.
-// small helper so pco.ts stays self-contained
-import { ed25519 } from '@noble/curves/ed25519';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
-function pubFromPriv(privHex: string): string {
-  return bytesToHex(ed25519.getPublicKey(hexToBytes(privHex)));
-}
+// The in-browser key, its localStorage slot, its backup/restore and its import
+// path were all REMOVED (2026-08-01). This page does not generate, store,
+// import or sign with private keys of its own. The only key it ever creates is
+// the ephemeral gas-station signer in chain.ts: in memory, authorises a fee and
+// nothing else, gone when the tab closes.
+// Do not reintroduce browser-held key material.
 
 export { CFG, cmdHash };

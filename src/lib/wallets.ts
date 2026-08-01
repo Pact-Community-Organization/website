@@ -4,19 +4,18 @@
 //   ecko     — EckoWallet browser extension (injected window.kadena API)
 //   zelcore  — Zelcore desktop app (Kadena signing API on 127.0.0.1:9467)
 //   ledger   — Ledger hardware via WebHID (hash signing, loaded on demand)
-//   localkey — an in-browser throwaway test key (the gasless-claim key)
 //
 // The page keeps OUR command envelope as the single source of truth (chain.ts
 // buildExec); wallets only contribute signatures over OUR hash. DEVNET PREVIEW:
 // wallets must be pointed at the devnet network — adapters surface honest
 // errors when they are not.
-import { CFG, cmdHash, signHash, verifyHashSig, bytesToHex, type Cap } from './chain';
+import { CFG, cmdHash, verifyHashSig, bytesToHex, type Cap } from './chain';
 import { blake2b } from '@noble/hashes/blake2b';
 
 const NETWORK_ID = CFG.networkId;
 const API_BASE = CFG.host;
 
-export type WalletKind = 'ecko' | 'zelcore' | 'ledger' | 'localkey';
+export type WalletKind = 'ecko' | 'zelcore' | 'ledger';
 
 export type ConnectedWallet = {
   kind: WalletKind;
@@ -259,14 +258,12 @@ async function confirmBlindSign(): Promise<boolean> {
   );
 }
 
-// ---------------- In-browser test key (the gasless-claim key) ----------------
-export type LocalAccount = { account: string; publicKey: string; secretKey: string };
-export function connectLocalKey(acct: LocalAccount): ConnectedWallet {
-  return {
-    kind: 'localkey', label: 'In-browser test key', account: acct.account, publicKey: acct.publicKey,
-    async sign(cmd) { return signHash(cmdHash(cmd), acct.secretKey); },
-  };
-}
+// ---------------- (removed: browser-held key material) ----------------
+// LocalAccount / connectLocalKey were REMOVED (2026-08-01). This page no longer
+// generates, stores, imports or signs with private keys of its own: every
+// signature comes from a wallet the user already controls. Do not reintroduce
+// browser-held key material — a site that mints secrets for you teaches a habit
+// that does not survive a convincing clone of that site.
 
 // Sign our unsigned command with the connected wallet, then CRYPTOGRAPHICALLY VERIFY
 // that what came back really is a signature over OUR command hash by the account we

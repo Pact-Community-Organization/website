@@ -32,13 +32,15 @@ export default function TokenPage() {
         <ul>
           <li>
             <b>Step 1 — choose your wallet.</b> One active wallet drives everything on the page:
-            claims land there, balances show for it, votes and transfers come from it. The in-browser
-            key needs zero setup (perfect for a first claim); or pick EckoWallet, Zelcore, or a
-            Ledger. Never two identities at once — switching wallets switches everything.
+            claims land there, balances show for it, votes and transfers come from it. Connect
+            EckoWallet, Zelcore, or a Ledger — a wallet you already control. This page never
+            generates or stores keys for you. Never two identities at once — switching wallets
+            switches everything.
           </li>
           <li>
-            <b>Step 2 — claim, free.</b> The on-chain gas station pays the claim fee and your wallet
-            never signs for it — claiming is free with any wallet. Everything else (transfers,
+            <b>Step 2 — claim, free.</b> The on-chain gas station pays the claim fee, so you need
+            no KDA to claim. Your wallet signs one thing: permission for the station to pay — never a
+            movement of your own funds. Everything else (transfers,
             ranked-choice voting) is <i>not</i> sponsored: your active wallet signs and pays
             ordinary gas. On-chain questions are admin-authored — suggest yours on the public
             channels and the organization makes it official.

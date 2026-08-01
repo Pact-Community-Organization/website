@@ -4,22 +4,21 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styles from '@/styles/token.module.css';
 import { CFG } from '@/lib/chain';
 import {
-  loadOrCreateLocalKey, saveLocalKey, openRounds, alreadyClaimed, poolBalance, masterOpen,
+  openRounds, alreadyClaimed, poolBalance, masterOpen,
   balance, openProposals, myBallot, claim, transfer, vote,
   voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance,
   type Round, type Proposal, checkCode } from '@/lib/pco';
 import {
-  connectEcko, connectZelcore, connectLedger, connectLocalKey, eckoAvailable,
-  type ConnectedWallet, type LocalAccount,
+  connectEcko, connectZelcore, connectLedger, eckoAvailable,
+  type ConnectedWallet,
 } from '@/lib/wallets';
 
 type Status = { msg: string; kind: 'info' | 'ok' | 'err' } | null;
 
 // ONE active wallet at a time drives the whole page: the claim destination,
-// balances, votes, transfers. The in-browser key is simply the default wallet
+// balances, votes, transfers. There is no default wallet: the page generates
 // (zero setup), and switching to Ledger/Ecko/Zelcore REPLACES it everywhere.
 export default function TokenApp() {
-  const [key, setKey] = useState<LocalAccount | null>(null);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [roundId, setRoundId] = useState('');
   const [code, setCode] = useState('');
@@ -36,7 +35,10 @@ export default function TokenApp() {
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
   const [vkActive, setVkActive] = useState(false);
-  const [vkCold, setVkCold] = useState('');          // cold account this browser's key votes for
+  // A ref mirror of destAddr: refresh needs to READ it without DEPENDING on it.
+  const destAddrRef = useRef('');
+  const [vkHot, setVkHot] = useState('');
+  const [vkCold, setVkCold] = useState('');          // cold account the connected wallet votes for
   const [voteMode, setVoteMode] = useState<'wallet' | 'hotkey'>('wallet');
   const [walletKda, setWalletKda] = useState(0);
   const [destAddr, setDestAddr] = useState('');
@@ -45,17 +47,36 @@ export default function TokenApp() {
   const [rotKey, setRotKey] = useState('');
   const [lookup, setLookup] = useState('');
   const [lookupResult, setLookupResult] = useState<{ label: string; total?: number; perChain?: { chain: string; balance: number }[] } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const say = (msg: string, kind: Status extends null ? never : 'info' | 'ok' | 'err' = 'info') => setStatus({ msg, kind });
 
+  // ECKO DETECTION MUST NOT HAPPEN DURING RENDER.
+  //
+  // eckoAvailable() reads window, so the server renders "not detected / disabled"
+  // and a client with the extension renders "enabled" — a hydration mismatch that
+  // React explicitly does NOT patch up for attributes. The server's disabled=""
+  // could therefore stick, leaving the Ecko button permanently unclickable for
+  // exactly the users who have Ecko. (Pre-existing; it has been live since launch.)
+  //
+  // null = still detecting, which is what BOTH the server and the first client
+  // render produce, so they agree. The extension also injects asynchronously, so
+  // one check on mount can miss it — re-check for a couple of seconds.
+  const [eckoReady, setEckoReady] = useState<boolean | null>(null);
+  useEffect(() => {
+    let done = false;
+    const check = () => { if (!done && eckoAvailable()) { setEckoReady(true); done = true; } };
+    check();
+    const timers = [200, 600, 1200, 2000].map((ms) => setTimeout(check, ms));
+    const settle = setTimeout(() => { if (!done) setEckoReady(false); }, 2200);
+    return () => { done = true; timers.forEach(clearTimeout); clearTimeout(settle); };
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
-      let k = key;
-      let w = wallet;
-      if (!k) { k = loadOrCreateLocalKey(); setKey(k); }
-      // the DEFAULT active wallet is the in-browser key — one identity, always
-      if (!w) { w = connectLocalKey(k); setWallet(w); }
+      // There is no default wallet any more: the page generates no keys, so
+      // until the user connects one there is no identity to read balances for.
+      // Round and pool state are public and load regardless.
+      const w = wallet;
       const [op, pl, rs, props] = await Promise.all([
         masterOpen(), poolBalance(), openRounds(), openProposals(),
       ]);
@@ -67,8 +88,17 @@ export default function TokenApp() {
       // the RECEIVING ADDRESS is an open field: it follows the active wallet
       // until the user types their own (e.g. a hardware wallet in a safe —
       // paste the public address and claim, nothing signs)
-      const effDest = destEdited ? destAddr.trim() : w.account;
-      if (!destEdited && destAddr !== w.account) setDestAddr(w.account);
+      if (!w) {
+        // no wallet connected: show the public state, clear anything account-shaped
+        setWalletBal(0); setWalletKda(0); setVkActive(false); setMyBallots({}); setClaimed(false);
+        return;
+      }
+      const effDest = destEdited ? destAddrRef.current.trim() : w.account;
+      // Functional update so `destAddr` does NOT have to be a dependency of
+      // refresh. It used to be, and refresh SETS it — so every refresh recreated
+      // refresh, which re-ran the effect. It settled after one extra cycle, but
+      // it is a cascade and the linter is right to call it one.
+      if (!destEdited) setDestAddr((prev) => (prev === w.account ? prev : w.account));
       setClaimed(sel && /^k:[0-9a-f]{64}$/.test(effDest) ? await alreadyClaimed(sel.id, effDest) : false);
       setWalletBal(await balance(w.account));
       setWalletKda(await kdaBalance(w.account));
@@ -81,27 +111,46 @@ export default function TokenApp() {
     } catch (e) {
       say(`Cannot reach the network: ${(e as Error).message}`, 'err');
     }
-  }, [key, roundId, wallet, destEdited, destAddr]);
+  }, [roundId, wallet, destEdited]);
 
   // refresh is re-created whenever key/roundId/wallet change (its useCallback
   // deps), so this effect re-runs with FRESH state — no manual refresh() calls
   // in onChange handlers (they would run a stale closure).
-  useEffect(() => { void refresh(); const t = setInterval(() => { void refresh(); }, 30000); return () => clearInterval(t); }, [refresh]);
+  // refresh() sets state, so calling it synchronously in the effect body is a
+  // cascading render by definition. Defer the first run to a microtask-ish tick:
+  // same behaviour to a user, but the effect body itself no longer sets state.
+  useEffect(() => {
+    let live = true;
+    const tick = () => { if (live) void refresh(); };
+    const first = setTimeout(tick, 0);
+    const every = setInterval(tick, 30000);
+    return () => { live = false; clearTimeout(first); clearInterval(every); };
+  }, [refresh]);
+
+  // Keep the ref in step with the state it mirrors. Cheap, and it means refresh
+  // always reads the current value without listing it as a dependency.
+  useEffect(() => { destAddrRef.current = destAddr; }, [destAddr]);
 
   const selectedRound = () => rounds.find((r) => r.id === roundId) ?? rounds[0];
 
   const doClaim = async () => {
-    const round = selectedRound(); const k = key!;
-    if (!wallet) return say('Choose your wallet first (step 1).', 'err');
+    const round = selectedRound();
     if (!round) return say('No open round right now.', 'err');
-    if (!code.trim()) return say('Enter the engagement code first.', 'err');
-    // destination = the active wallet, OR a pasted k: address. No destination
-    // signature is needed — claims have no claimer signature by design; the
-    // browser key only signs the station's GAS_PAYER capability.
-    const a = (destEdited ? destAddr.trim() : wallet.account);
-    if (!/^k:[0-9a-f]{64}$/.test(a)) return say('That is not a valid k: account — expected "k:" + 64 lowercase hex characters. Check for typos before claiming.', 'err');
+    if (!code.trim()) return say('Enter the answer first.', 'err');
+    // NO WALLET IS REQUIRED TO CLAIM. Claims carry no claimer signature — tokens
+    // can only land in the account bound to the guard supplied with the claim —
+    // and the station's fee is authorised by an ephemeral in-memory key. All the
+    // page needs is a destination: the connected wallet if there is one, or an
+    // address typed in by someone who has no wallet connected at all (a hardware
+    // wallet in a safe, a friend's account, a fresh address).
+    const a = (destEdited || !wallet) ? destAddr.trim() : wallet.account;
+    if (!/^k:[0-9a-f]{64}$/.test(a)) {
+      return say(wallet
+        ? 'That is not a valid k: account — expected "k:" + 64 lowercase hex characters. Check for typos before claiming.'
+        : 'Paste the k: address the tokens should go to — "k:" + 64 lowercase hex characters. No wallet needed to claim.', 'err');
+    }
     const dest = { account: a, publicKey: a.slice(2) };
-    const destLabel = destEdited && a !== wallet.account ? `${a.slice(0, 14)}…` : `your ${wallet.label} account`;
+    const destLabel = wallet && !destEdited ? `your ${wallet.label} account` : `${a.slice(0, 14)}…`;
     // Check the answer BEFORE any spinner or network work. A wrong answer is
     // caught here for free; submitting it would spend the gas station's float on
     // a transaction that cannot succeed, and enough of those exhaust the daily
@@ -109,27 +158,26 @@ export default function TokenApp() {
     if (!checkCode(round, code)) {
       return say("That answer doesn't match this round — nothing was submitted, so try again freely.", 'err');
     }
-    setBusy(true); say(`Claiming "${round.id}" to ${destLabel} (the gas station pays the fee)…`);
-    try { await claim(round, dest, k, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}…!`, 'ok'); setCode(''); }
+    setBusy(true); say(`Claiming "${round.id}" to ${destLabel} (the gas station pays the fee — nothing to sign)…`);
+    try { await claim(round, dest, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}…!`, 'ok'); setCode(''); }
     catch (e) { say(`Claim failed: ${(e as Error).message}`, 'err'); }
     setBusy(false); void refresh();
   };
 
   // Switching wallets REPLACES the active identity everywhere — never two at
-  // once. A failed or ended external session falls back to the in-browser key.
-  const fallback = () => connectLocalKey(key ?? loadOrCreateLocalKey());
-  const connect = async (kind: 'ecko' | 'zelcore' | 'ledger' | 'localkey') => {
+  // once. A failed or ended session leaves the page with no wallet, not a fallback.
+  const connect = async (kind: 'ecko' | 'zelcore' | 'ledger') => {
     say(`Connecting ${kind}…`);
     wallet?.disconnect?.();
     try {
       let w: ConnectedWallet;
-      if (kind === 'ecko') w = await connectEcko((reason) => { setWallet(fallback()); say(`${reason} — switched back to the in-browser key`, 'err'); });
+      if (kind === 'ecko') w = await connectEcko((reason) => { setWallet(null); say(`${reason} — wallet disconnected`, 'err'); });
       else if (kind === 'zelcore') w = await connectZelcore();
       else if (kind === 'ledger') w = await connectLedger();
-      else w = fallback();
+      else return say('Unknown wallet type.', 'err');
       setWallet(w); say(`Active wallet: ${w.label} · ${w.account.slice(0, 16)}…`, 'ok');
     } catch (e) {
-      setWallet(fallback());
+      setWallet(null);
       say(`${(e as Error).message}`, 'err');
     }
   };
@@ -153,11 +201,13 @@ export default function TokenApp() {
   const doVote = async (pid: string) => {
     const ranking = rankings[pid] ?? [];
     if (ranking.length === 0) return say('Build your ranking first — tap the options in order of preference.', 'err');
-    if (voteMode === 'hotkey' && vkCold && key) {
-      // the browser key is a registered VOTE KEY for the cold account: it signs
-      // and pays its own gas; the cold wallet never comes out for voting
-      setBusy(true); say(`Submitting the ranked ballot as ${vkCold.slice(0, 14)}… with the browser vote key…`);
-      try { await voteAs(connectLocalKey(key), vkCold, pid, ranking); say('Ballot submitted as the cold account (vote key signed).', 'ok'); }
+    if (voteMode === 'hotkey' && vkCold && wallet) {
+      // the CONNECTED wallet is a registered VOTE KEY for the cold account: it
+      // signs and pays its own gas, so the cold wallet never comes out to vote.
+      // This used to be a key the page generated for you; registering a wallet
+      // you already control is the same mechanism without us minting secrets.
+      setBusy(true); say(`Submitting the ranked ballot as ${vkCold.slice(0, 14)}… with the registered vote key…`);
+      try { await voteAs(wallet, vkCold, pid, ranking); say('Ballot submitted as the cold account (vote key signed).', 'ok'); }
       catch (e) { say(`Vote-key ballot failed: ${(e as Error).message}`, 'err'); }
       setBusy(false); void refresh(); return;
     }
@@ -169,10 +219,14 @@ export default function TokenApp() {
   };
 
   const doRegisterVoteKey = async () => {
-    if (!wallet || !key) return say('Connect your main wallet first.', 'err');
-    setBusy(true); say("Registering this browser's key as your vote key (your wallet signs)…");
+    if (!wallet) return say('Connect your main wallet first.', 'err');
+    const hot = vkHot.trim();
+    // A vote key is ANOTHER ACCOUNT YOU CONTROL, identified by its PUBLIC key.
+    // The page never sees a secret: the hot account signs its own ballots later.
+    if (!/^[0-9a-f]{64}$/.test(hot)) return say('Enter the vote key\u2019s PUBLIC key (64 hex) — the account you want to vote with. Never paste a private key.', 'err');
+    setBusy(true); say('Registering that public key as your vote key (your wallet signs)…');
     try {
-      await setVoteKey(wallet, key.publicKey);
+      await setVoteKey(wallet, hot);
       localStorage.setItem('pco-votekey-cold', wallet.account);
       say('Vote key registered — this browser can now vote for your account (and ONLY vote).', 'ok');
     } catch (e) { say(`Registration failed: ${(e as Error).message}`, 'err'); }
@@ -216,26 +270,6 @@ export default function TokenApp() {
     }
   };
 
-  const backup = () => {
-    if (!key) return;
-    const blob = new Blob([JSON.stringify(key, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `pco-key-${CFG.networkId}.json`; a.click();
-  };
-  const restore = () => fileRef.current?.click();
-  const onRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = () => {
-      try {
-        const j = JSON.parse(String(r.result));
-        if (!/^[0-9a-f]{64}$/.test(j.secretKey) || !/^[0-9a-f]{64}$/.test(j.publicKey)) throw new Error('not a PCO key backup');
-        const acct: LocalAccount = { account: `k:${j.publicKey}`, publicKey: j.publicKey, secretKey: j.secretKey };
-        saveLocalKey(acct); setKey(acct); say(`Restored ${acct.account.slice(0, 14)}…`, 'ok'); void refresh();
-      } catch (err) { say(`Could not restore: ${(err as Error).message}`, 'err'); }
-      if (fileRef.current) fileRef.current.value = '';
-    };
-    r.readAsText(f);
-  };
 
   const round = selectedRound();
 
@@ -248,15 +282,13 @@ export default function TokenApp() {
         <h2>1 · Choose your wallet</h2>
         <p className={styles.muted}>
           Everything on this page — claiming, balances, votes, transfers — uses <b>one active
-          wallet</b>. The in-browser key needs no setup (perfect for a first claim); switch to your
-          own wallet at any time and the page follows it.
+          wallet</b>: your own. Connect it and the page follows it.
+          {' '}<b>Claiming stays gasless</b> — you need no KDA to claim; your wallet only
+          authorises the gas station to pay, and the station covers the fee.
         </p>
         <p className={styles.walletButtons}>
-          <button className={styles.btn} disabled={wallet?.kind === 'localkey'} onClick={() => connect('localkey')}>
-            in-browser key{wallet?.kind === 'localkey' && ' ✓'}
-          </button>
-          <button className={styles.btn} disabled={!eckoAvailable() || wallet?.kind === 'ecko'} onClick={() => connect('ecko')}>
-            EckoWallet{!eckoAvailable() ? ' (not detected)' : wallet?.kind === 'ecko' ? ' ✓' : ''}
+          <button className={styles.btn} disabled={eckoReady !== true || wallet?.kind === 'ecko'} onClick={() => connect('ecko')}>
+            EckoWallet{eckoReady === null ? ' (checking…)' : eckoReady === false ? ' (not detected)' : wallet?.kind === 'ecko' ? ' ✓' : ''}
           </button>
           <button className={styles.btn} disabled={wallet?.kind === 'zelcore'} onClick={() => connect('zelcore')}>
             Zelcore{wallet?.kind === 'zelcore' && ' ✓'}
@@ -279,44 +311,30 @@ export default function TokenApp() {
               Holds on <b>chain {CFG.chain}</b>: <b>{walletBal.toLocaleString()} PCO</b> · <b>{walletKda.toLocaleString(undefined, { maximumFractionDigits: 4 })} KDA</b>
               {walletKda < 0.05 && <span className={styles.muted}> — self-paid actions (transfer/vote) need a little KDA <i>on this chain</i>; claiming does not. KDA held on another Kadena chain has to be moved here first.</span>}
             </p>
-            {wallet.kind === 'localkey' && (
-              <>
-                <p className={styles.muted}>
-                  <b>This key lives only in this browser.</b> Keep the backup — clearing storage deletes it.
-                  <button className={styles.btn} onClick={backup}>download key backup</button>
-                  <button className={styles.btn} onClick={restore}>restore from backup</button>
-                  <input ref={fileRef} type="file" accept="application/json" hidden onChange={onRestore} />
-                </p>
-                  {/* There was a "paste a secret key here" field. It is gone, and
-                      nothing like it should return. A text box asking for private key
-                      material is the exact shape of every wallet-drainer phishing page,
-                      and putting one on an official site teaches the habit that gets
-                      people robbed on a fake one. Restoring from a backup file this
-                      page itself produced is a different act and stays. */}
-                  <p className={styles.muted}>
-                    <b>PCO will never ask for your seed phrase or a private key.</b> Not here,
-                    not by message, not ever. Anyone asking for one is not us — including a
-                    page that looks exactly like this one.
-                  </p>
-              </>
-            )}
-            {wallet.kind !== 'localkey' && (
-              <>
-                <hr />
-                <h3>Voting key {vkActive ? '— active' : '— none registered'}</h3>
-                <p className={styles.muted}>
-                  Register this browser&apos;s key as a dedicated <b>vote key</b> for this account: it
-                  can then vote on your behalf while your {wallet.label} stays cold. The vote key can{' '}
-                  <b>only vote</b> — it can never transfer, rotate, or re-point itself, and your main
-                  wallet always keeps its own voting power. <a href="/token/guide#voting-key">How this works →</a>
-                </p>
-                <p>
-                  {!vkActive
-                    ? <button className={styles.btn} disabled={busy} onClick={doRegisterVoteKey}>register browser key as vote key</button>
-                    : <button className={styles.btn} disabled={busy} onClick={doClearVoteKey}>clear vote key</button>}
-                </p>
-              </>
-            )}
+            <>
+              <hr />
+              <h3>Voting key {vkActive ? '— active' : '— none registered'}</h3>
+              <p className={styles.muted}>
+                Nominate <b>another account you control</b> as a dedicated <b>vote key</b> for this
+                one: it can then vote on your behalf while your {wallet.label} stays cold. The vote
+                key can <b>only vote</b> — it can never transfer, rotate, or re-point itself, and
+                your main wallet always keeps its own voting power.{' '}
+                <a href="/token/guide#voting-key">How this works →</a>
+              </p>
+              <p className={styles.muted}>
+                Identify it by its <b>public key</b> (64 hex). Nothing secret is entered here, and
+                nothing about the other account is stored — it signs its own ballots later.
+              </p>
+              <p>
+                {!vkActive
+                  ? <>
+                      <input placeholder="vote key PUBLIC key (64 hex)" value={vkHot}
+                             onChange={(e) => setVkHot(e.target.value)} style={{ width: '60%' }} />
+                      <button className={styles.btn} disabled={busy || !vkHot.trim()} onClick={doRegisterVoteKey}>register vote key</button>
+                    </>
+                  : <button className={styles.btn} disabled={busy} onClick={doClearVoteKey}>clear vote key</button>}
+              </p>
+            </>
           </>
         )}
       </section>
@@ -357,7 +375,7 @@ export default function TokenApp() {
         <p>
           <input placeholder="answer" value={code} onChange={(e) => setCode(e.target.value)} />
           <button className={styles.btn}
-            disabled={busy || !open || !round || claimed || (destEdited && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()))}
+            disabled={busy || !open || !round || claimed || ((destEdited || !wallet) && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()))}
             onClick={doClaim}>
             {round ? `claim ${round.amount} PCO` : 'claim'}
           </button>

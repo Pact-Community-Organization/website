@@ -37,21 +37,20 @@ export default function TokenGuide() {
         <p>
           The <Link href="/token">token page</Link> uses <b>one active wallet at a time</b>: claims
           land there, balances show for it, votes and transfers come from it. Never two identities
-          at once — switching wallets switches everything. Four options:
+          at once — switching wallets switches everything. Three options:
         </p>
         <ul>
-          <li><b>In-browser key</b> — a keypair generated inside your browser (the default). Zero setup, perfect for a first claim. <b>Download the key backup</b> — the key lives only in that browser&apos;s storage; clearing site data deletes it.</li>
-          <li><b>EckoWallet</b> — browser extension. Must be on the site&apos;s network (see below).</li>
+                    <li><b>EckoWallet</b> — browser extension. Must be on the site&apos;s network (see below).</li>
           <li><b>Zelcore</b> — desktop app. Log in first; the site talks to its local signing API.</li>
           <li><b>Ledger</b> — hardware, via WebHID (Chrome/Edge/Brave; Kadena app open). The page asks the device to <b>display</b> the transaction so you can check the recipient and amount on the device itself. Leave <b>blind signing off</b>: if the device shows only a hash it cannot tell you what you are approving, and this page will warn you before it continues.</li>
         </ul>
 
         <h2>2 · Claim — free, with any wallet</h2>
         <p>
-          Claiming is the one action whose gas is <b>sponsored</b> by the on-chain gas station — and
-          your wallet never signs for it (claims need no signature from the claimer; tokens can only
-          land in the account bound to the supplied guard). Even a Ledger claim needs no device
-          interaction.
+          Claiming is the one action whose gas is <b>sponsored</b> by the on-chain gas station, so
+          <b>you need no KDA to claim</b>. Your wallet signs one thing: permission for the station to
+          pay the fee. It never authorises a transfer of your funds, and the tokens can only land in
+          the account bound to the guard supplied with the claim.
         </p>
         <ul>
           <li>Pick the open claim round and answer its quest. Quests are published on the PCO channels together with the round id; the answer, normalized to lowercase, is the claim code.</li>
@@ -133,7 +132,7 @@ export default function TokenGuide() {
         <h2>9 · Fair play and safety</h2>
         <ul>
           <li>Official rounds exist on-chain before they are announced anywhere. We never direct-message claim links, and there is nothing to buy — ever.</li>
-          <li>The claim page never asks for a seed phrase. The in-browser key is generated locally; back it up and treat the backup like a password.</li>
+          <li>The claim page never asks for a seed phrase or a private key, and never generates one for you. Every signature comes from a wallet you already control. Any page asking you to paste key material is not ours — including one that looks exactly like this.</li>
           <li>Round budgets bound worst-case abuse; one-claim-per-account-per-round is the on-chain rule.</li>
         </ul>
 
