@@ -57,3 +57,16 @@ jobs:
       - name: Build
         # The step that actually catches a breaking dependency bump.
         run: npm run build
+
+      - name: Mobile layout (no page may be wider than the phone it is viewed on)
+        # NEITHER lint NOR build can see layout, so a navbar that laid its links
+        # out in one non-wrapping row shipped to production and made every page
+        # unreadable on a phone: the body measured 907px on a 375px screen, and
+        # because `overflow-x: hidden` CLIPS rather than scrolls, the only way to
+        # read the site was to rotate the device. It took a user report to find.
+        # This measures the built export at 320/375/414px and fails on overflow.
+        run: |
+          npx playwright install --with-deps chromium
+          npx --yes serve out -l 3000 --no-clipboard > /dev/null 2>&1 &
+          curl -s --retry 40 --retry-delay 1 --retry-connrefused -m 90 -o /dev/null http://localhost:3000/
+          npm run mobile-check
