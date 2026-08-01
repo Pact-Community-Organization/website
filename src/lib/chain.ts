@@ -58,6 +58,39 @@ const b64urlBytes = (hashB64: string): Uint8Array => {
   return Uint8Array.from(atob(pad), (c) => c.charCodeAt(0));
 };
 
+/**
+ * EPHEMERAL GAS-STATION SIGNER — in memory, one per page load, never persisted.
+ *
+ * A sponsored transaction still needs A signer: the node grants the station's
+ * GAS_PAYER capability by scanning the signers' capability lists, so if nobody
+ * declares it the station's guard never opens. But that signer does not have to
+ * be the user — it authorises the station to pay a fee and nothing else, so any
+ * throwaway key does.
+ *
+ * This is why a claim asks the user for NOTHING: no wallet popup, no device, no
+ * KDA. They type an answer and click.
+ *
+ * What it deliberately is not:
+ *   - not written to localStorage, so clearing storage loses nothing
+ *   - not exported, downloadable, or importable, so there is no backup to lose
+ *     and no field for a phishing clone to imitate
+ *   - not an identity: it never receives, holds, or moves tokens, and it is a
+ *     different key on every page load
+ *
+ * (PCO previously used a PERSISTED browser key for this, which is what created
+ * the backup/restore/import surface. Same mechanism, without the liability.)
+ */
+let _ephemeral: { publicKey: string; secretKey: string } | null = null;
+export function ephemeralGasSigner(): { publicKey: string; secretKey: string } {
+  // Lazy, so it is never generated during SSR — where it would be pointless and
+  // would differ from the client's.
+  if (!_ephemeral) {
+    const sk = ed25519.utils.randomPrivateKey();
+    _ephemeral = { secretKey: bytesToHex(sk), publicKey: bytesToHex(ed25519.getPublicKey(sk)) };
+  }
+  return _ephemeral;
+}
+
 export function signHash(hashB64: string, privHex: string): string {
   return bytesToHex(ed25519.sign(b64urlBytes(hashB64), hexToBytes(privHex)));
 }

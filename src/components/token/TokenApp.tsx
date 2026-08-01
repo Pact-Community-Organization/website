@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styles from '@/styles/token.module.css';
 import { CFG } from '@/lib/chain';
 import {
-  dryRunClaimSignature, openRounds, alreadyClaimed, poolBalance, masterOpen,
+  openRounds, alreadyClaimed, poolBalance, masterOpen,
   balance, openProposals, myBallot, claim, transfer, vote,
   voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance,
   type Round, type Proposal, checkCode } from '@/lib/pco';
@@ -69,27 +69,6 @@ export default function TokenApp() {
     return () => { done = true; timers.forEach(clearTimeout); clearTimeout(settle); };
   }, []);
 
-  // DEV-ONLY signing probe. Lets a real wallet sign the real claim transaction
-  // and verify the signature, without submitting — the one risk that typecheck
-  // and build cannot cover. Stripped from any production build by the guard.
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'development') return;
-    (window as unknown as Record<string, unknown>).__pcoSignTest = async (destAcct?: string) => {
-      const r = selectedRound();
-      if (!r) throw new Error('no open round');
-      if (!wallet) throw new Error('connect a wallet first');
-      const a = (destAcct ?? wallet.account).trim();
-      if (!/^k:[0-9a-f]{64}$/.test(a)) throw new Error('destination must be a k: account');
-      const out = await dryRunClaimSignature(r, { account: a, publicKey: a.slice(2) }, wallet, code);
-      console.log('%c✓ wallet signed the sponsored claim shape — NOTHING was submitted', 'color:green;font-weight:bold');
-      console.log('  wallet   ', wallet.label, wallet.account);
-      console.log('  sender   ', out.station, '(the gas station, not the wallet)');
-      console.log('  hash     ', out.hash);
-      console.log('  signature', out.sig.slice(0, 32) + '…');
-      return out;
-    };
-  }, [wallet, code, rounds, roundId]);
-
   const refresh = useCallback(async () => {
     try {
       // There is no default wallet any more: the page generates no keys, so
@@ -137,16 +116,22 @@ export default function TokenApp() {
 
   const doClaim = async () => {
     const round = selectedRound();
-    if (!wallet) return say('Choose your wallet first (step 1).', 'err');
     if (!round) return say('No open round right now.', 'err');
-    if (!code.trim()) return say('Enter the engagement code first.', 'err');
-    // destination = the active wallet, OR a pasted k: address. No destination
-    // signature is needed — claims have no claimer signature by design; the
-    // the wallet only signs the station's GAS_PAYER capability.
-    const a = (destEdited ? destAddr.trim() : wallet.account);
-    if (!/^k:[0-9a-f]{64}$/.test(a)) return say('That is not a valid k: account — expected "k:" + 64 lowercase hex characters. Check for typos before claiming.', 'err');
+    if (!code.trim()) return say('Enter the answer first.', 'err');
+    // NO WALLET IS REQUIRED TO CLAIM. Claims carry no claimer signature — tokens
+    // can only land in the account bound to the guard supplied with the claim —
+    // and the station's fee is authorised by an ephemeral in-memory key. All the
+    // page needs is a destination: the connected wallet if there is one, or an
+    // address typed in by someone who has no wallet connected at all (a hardware
+    // wallet in a safe, a friend's account, a fresh address).
+    const a = (destEdited || !wallet) ? destAddr.trim() : wallet.account;
+    if (!/^k:[0-9a-f]{64}$/.test(a)) {
+      return say(wallet
+        ? 'That is not a valid k: account — expected "k:" + 64 lowercase hex characters. Check for typos before claiming.'
+        : 'Paste the k: address the tokens should go to — "k:" + 64 lowercase hex characters. No wallet needed to claim.', 'err');
+    }
     const dest = { account: a, publicKey: a.slice(2) };
-    const destLabel = destEdited && a !== wallet.account ? `${a.slice(0, 14)}…` : `your ${wallet.label} account`;
+    const destLabel = wallet && !destEdited ? `your ${wallet.label} account` : `${a.slice(0, 14)}…`;
     // Check the answer BEFORE any spinner or network work. A wrong answer is
     // caught here for free; submitting it would spend the gas station's float on
     // a transaction that cannot succeed, and enough of those exhaust the daily
@@ -154,8 +139,8 @@ export default function TokenApp() {
     if (!checkCode(round, code)) {
       return say("That answer doesn't match this round — nothing was submitted, so try again freely.", 'err');
     }
-    setBusy(true); say(`Claiming "${round.id}" to ${destLabel} (the gas station pays the fee)…`);
-    try { await claim(round, dest, wallet, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}…!`, 'ok'); setCode(''); }
+    setBusy(true); say(`Claiming "${round.id}" to ${destLabel} (the gas station pays the fee — nothing to sign)…`);
+    try { await claim(round, dest, code.trim().toLowerCase()); say(`Claimed ${round.amount} PCO to ${dest.account.slice(0, 14)}…!`, 'ok'); setCode(''); }
     catch (e) { say(`Claim failed: ${(e as Error).message}`, 'err'); }
     setBusy(false); void refresh();
   };
@@ -371,7 +356,7 @@ export default function TokenApp() {
         <p>
           <input placeholder="answer" value={code} onChange={(e) => setCode(e.target.value)} />
           <button className={styles.btn}
-            disabled={busy || !open || !round || claimed || (destEdited && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()))}
+            disabled={busy || !open || !round || claimed || ((destEdited || !wallet) && !/^k:[0-9a-f]{64}$/.test(destAddr.trim()))}
             onClick={doClaim}>
             {round ? `claim ${round.amount} PCO` : 'claim'}
           </button>
