@@ -35,6 +35,8 @@ export default function TokenApp() {
   const [status, setStatus] = useState<Status>(null);
   const [busy, setBusy] = useState(false);
   const [vkActive, setVkActive] = useState(false);
+  // A ref mirror of destAddr: refresh needs to READ it without DEPENDING on it.
+  const destAddrRef = useRef('');
   const [vkHot, setVkHot] = useState('');
   const [vkCold, setVkCold] = useState('');          // cold account the connected wallet votes for
   const [voteMode, setVoteMode] = useState<'wallet' | 'hotkey'>('wallet');
@@ -91,8 +93,12 @@ export default function TokenApp() {
         setWalletBal(0); setWalletKda(0); setVkActive(false); setMyBallots({}); setClaimed(false);
         return;
       }
-      const effDest = destEdited ? destAddr.trim() : w.account;
-      if (!destEdited && destAddr !== w.account) setDestAddr(w.account);
+      const effDest = destEdited ? destAddrRef.current.trim() : w.account;
+      // Functional update so `destAddr` does NOT have to be a dependency of
+      // refresh. It used to be, and refresh SETS it — so every refresh recreated
+      // refresh, which re-ran the effect. It settled after one extra cycle, but
+      // it is a cascade and the linter is right to call it one.
+      if (!destEdited) setDestAddr((prev) => (prev === w.account ? prev : w.account));
       setClaimed(sel && /^k:[0-9a-f]{64}$/.test(effDest) ? await alreadyClaimed(sel.id, effDest) : false);
       setWalletBal(await balance(w.account));
       setWalletKda(await kdaBalance(w.account));
@@ -105,12 +111,25 @@ export default function TokenApp() {
     } catch (e) {
       say(`Cannot reach the network: ${(e as Error).message}`, 'err');
     }
-  }, [roundId, wallet, destEdited, destAddr]);
+  }, [roundId, wallet, destEdited]);
 
   // refresh is re-created whenever key/roundId/wallet change (its useCallback
   // deps), so this effect re-runs with FRESH state — no manual refresh() calls
   // in onChange handlers (they would run a stale closure).
-  useEffect(() => { void refresh(); const t = setInterval(() => { void refresh(); }, 30000); return () => clearInterval(t); }, [refresh]);
+  // refresh() sets state, so calling it synchronously in the effect body is a
+  // cascading render by definition. Defer the first run to a microtask-ish tick:
+  // same behaviour to a user, but the effect body itself no longer sets state.
+  useEffect(() => {
+    let live = true;
+    const tick = () => { if (live) void refresh(); };
+    const first = setTimeout(tick, 0);
+    const every = setInterval(tick, 30000);
+    return () => { live = false; clearTimeout(first); clearInterval(every); };
+  }, [refresh]);
+
+  // Keep the ref in step with the state it mirrors. Cheap, and it means refresh
+  // always reads the current value without listing it as a dependency.
+  useEffect(() => { destAddrRef.current = destAddr; }, [destAddr]);
 
   const selectedRound = () => rounds.find((r) => r.id === roundId) ?? rounds[0];
 
