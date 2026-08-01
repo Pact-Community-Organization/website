@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styles from '@/styles/token.module.css';
 import { CFG } from '@/lib/chain';
 import {
-  openRounds, alreadyClaimed, poolBalance, masterOpen,
+  dryRunClaimSignature, openRounds, alreadyClaimed, poolBalance, masterOpen,
   balance, openProposals, myBallot, claim, transfer, vote,
   voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance,
   type Round, type Proposal, checkCode } from '@/lib/pco';
@@ -47,6 +47,27 @@ export default function TokenApp() {
   const [lookupResult, setLookupResult] = useState<{ label: string; total?: number; perChain?: { chain: string; balance: number }[] } | null>(null);
 
   const say = (msg: string, kind: Status extends null ? never : 'info' | 'ok' | 'err' = 'info') => setStatus({ msg, kind });
+
+  // DEV-ONLY signing probe. Lets a real wallet sign the real claim transaction
+  // and verify the signature, without submitting — the one risk that typecheck
+  // and build cannot cover. Stripped from any production build by the guard.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    (window as unknown as Record<string, unknown>).__pcoSignTest = async (destAcct?: string) => {
+      const r = selectedRound();
+      if (!r) throw new Error('no open round');
+      if (!wallet) throw new Error('connect a wallet first');
+      const a = (destAcct ?? wallet.account).trim();
+      if (!/^k:[0-9a-f]{64}$/.test(a)) throw new Error('destination must be a k: account');
+      const out = await dryRunClaimSignature(r, { account: a, publicKey: a.slice(2) }, wallet, code);
+      console.log('%c✓ wallet signed the sponsored claim shape — NOTHING was submitted', 'color:green;font-weight:bold');
+      console.log('  wallet   ', wallet.label, wallet.account);
+      console.log('  sender   ', out.station, '(the gas station, not the wallet)');
+      console.log('  hash     ', out.hash);
+      console.log('  signature', out.sig.slice(0, 32) + '…');
+      return out;
+    };
+  }, [wallet, code, rounds, roundId]);
 
   const refresh = useCallback(async () => {
     try {

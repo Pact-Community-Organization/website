@@ -137,6 +137,42 @@ export function checkCode(round: Round, raw: string): boolean {
  * `dest` may be any k: account — claims carry NO claimer signature by design, so
  * tokens can only land in the account canonically bound to the supplied guard.
  */
+/**
+ * DEV-ONLY: prove a wallet will sign the sponsored claim shape, WITHOUT claiming.
+ *
+ * The one thing that cannot be checked by typecheck or build is whether each
+ * wallet adapter signs a transaction whose SENDER is the gas station rather than
+ * itself. That is the sponsored shape, it is normal, and walletSign is
+ * sender-agnostic — but "should work" is not evidence, and the claim path is the
+ * one every user takes on a launched token.
+ *
+ * This builds the byte-identical transaction `claim()` would build, asks the
+ * wallet to sign it, verifies the signature covers that exact hash under the
+ * wallet's own key, and then throws it away. Nothing is submitted, no claim slot
+ * is consumed, no gas is spent, and the round is untouched.
+ *
+ * Exposed on window only in development (see TokenApp); `next build` sets
+ * NODE_ENV=production, so it cannot reach the deployed site.
+ */
+export async function dryRunClaimSignature(
+  round: Round, dest: { account: string; publicKey: string }, signer: ConnectedWallet, code: string,
+): Promise<{ ok: true; hash: string; sig: string; station: string }> {
+  const submitted = normalizeCode(code);
+  const station = await stationAccount();
+  const gasPayerCap = { name: `${G}.GAS_PAYER`, args: ['web', { int: 6000 }, { decimal: '0.0000001' }] };
+  const { cmd, hash } = buildExec({
+    code: `(${C}.claim "${round.id}" "${dest.account}" (read-keyset 'ks) "${submitted}")`,
+    data: { ks: { keys: [dest.publicKey], pred: 'keys-all' } },
+    sender: station,
+    signers: [{ pubKey: signer.publicKey, caps: [gasPayerCap] }],
+    gasLimit: 6000, gasPrice: 1e-8,
+  });
+  // walletSign throws if the returned signature does not cover this hash under
+  // the wallet's key, so reaching the end IS the proof.
+  const signed = await walletSign(signer, { cmd, hash }, [gasPayerCap]);
+  return { ok: true, hash, sig: signed.sigs[0].sig, station };
+}
+
 export async function claim(round: Round, dest: { account: string; publicKey: string }, signer: ConnectedWallet, code: string): Promise<Record<string, unknown>> {
   // Refuse locally before building anything. See checkCode().
   if (!checkCode(round, code)) {
