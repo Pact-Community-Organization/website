@@ -57,6 +57,17 @@ pre {
   overflow-wrap: anywhere;
 }
 
+/* WCAG 1.4.1 — colour must not be the ONLY way a link is identified. Inside a
+   text block a coloured word is indistinguishable from emphasis for anyone who
+   does not perceive that hue, and axe flagged 27 such links. Underline only
+   links sitting IN prose: navigation, cards and buttons are identifiable by
+   position and shape, so they are exempt and are left alone. */
+p a,
+li a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 body {
   background-color: var(--background);
   color: var(--text-primary);

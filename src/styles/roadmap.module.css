@@ -56,7 +56,10 @@
 
 .entry a {
   color: var(--primary);
-  text-decoration: none;
+  /* Sits inline within the entry's prose, so colour alone does not identify it
+     as a link (WCAG 1.4.1). */
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
 }
 
 .entry a:hover {
