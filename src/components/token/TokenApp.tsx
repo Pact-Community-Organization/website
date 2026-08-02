@@ -446,12 +446,39 @@ export default function TokenApp() {
             <span className={styles.muted}> — read from the chain just now, not from your wallet.</span>
           </p>
         )}
-        <p className={styles.muted}>{pool.toLocaleString()} PCO left in the pool</p>
         <p className={styles.muted}>Pick a round and answer its community quest (published on the PCO channels with its round id):</p>
         <p>
           <select value={roundId} onChange={(e) => setRoundId(e.target.value)}>
-            {rounds.map((r) => <option key={r.id} value={r.id}>{r.id} — {r.amount} PCO (until {r.closes.slice(0, 10)})</option>)}
+            {/* Each option carries its OWN remaining budget: with several rounds open,
+                which ones still have room is the thing being chosen between. */}
+            {rounds.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.id} — {r.amount} PCO · {Math.max(0, r.budget - r.claimed).toLocaleString()} left (until {r.closes.slice(0, 10)})
+              </option>
+            ))}
           </select>
+        </p>
+        {/* WHAT BOUNDS A CLAIMER IS THE ROUND'S BUDGET, NOT THE POOL. This used to show
+            only the pool — 898,200 PCO beside a 100 PCO claim — which reads as "that is
+            what this quest pays out" when the round's own budget is 30,000, a 30x
+            overstatement. The pool stays, demoted to what it actually is: the reserve
+            behind every round, present and future. */}
+        {round && (
+          <p>
+            <b>{Math.max(0, round.budget - round.claimed).toLocaleString()} PCO</b> left in this round
+            <span className={styles.muted}>
+              {' '}of {round.budget.toLocaleString()} — room for about{' '}
+              {Math.floor(Math.max(0, round.budget - round.claimed) / round.amount).toLocaleString()} more
+              claim{Math.floor(Math.max(0, round.budget - round.claimed) / round.amount) === 1 ? '' : 's'} at {round.amount}{' '}
+              {/* {' '} is required, not decoration: a text node that spans a newline has its
+                  leading whitespace stripped, so `{round.amount} PCO` compiled to "100PCO". */}
+              PCO each. When a round&apos;s budget runs out or its window closes, that round is over.
+            </span>
+          </p>
+        )}
+        <p className={styles.muted}>
+          The community pool behind all rounds holds {pool.toLocaleString()} PCO — that is the
+          reserve every round is funded from, not an amount claimable here.
         </p>
         <p>
           <input placeholder="answer" value={code} onChange={(e) => setCode(e.target.value)} />
