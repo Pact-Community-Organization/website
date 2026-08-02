@@ -32,7 +32,11 @@
 .info h2 { font-size: 1.4rem; margin: 2rem 0 0.75rem; }
 .info p, .info li { line-height: 1.65; color: var(--text-secondary); margin-bottom: 0.5rem; }
 .info ul { padding-left: 1.25rem; }
-.info a { color: var(--text-link); text-decoration: none; }
+/* Underlined ON PURPOSE (WCAG 1.4.1): .info holds the token page's prose, where
+   a link is a coloured word inside a sentence and colour alone does not identify
+   it. Card and nav links elsewhere keep text-decoration:none — they are
+   identifiable by position and shape, so the rule does not apply to them. */
+.info a { color: var(--text-link); text-decoration: underline; text-underline-offset: 0.15em; }
 .info a:hover { color: var(--text-link-hover); text-decoration: underline; }
 
 .app {

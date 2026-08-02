@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "mobile-check": "node scripts/mobile-check.mjs"
+    "mobile-check": "node scripts/mobile-check.mjs",
+    "a11y-check": "node scripts/a11y-check.mjs"
   },
   "dependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.36.0",
@@ -25,6 +26,7 @@
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "axe-core": "^4.12.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "playwright": "^1.61.1",

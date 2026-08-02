@@ -70,3 +70,10 @@ jobs:
           npx --yes serve out -l 3000 --no-clipboard > /dev/null 2>&1 &
           curl -s --retry 40 --retry-delay 1 --retry-connrefused -m 90 -o /dev/null http://localhost:3000/
           npm run mobile-check
+
+      - name: Accessibility (WCAG 2.1 A/AA)
+        # The claim flow's round <select> shipped with no accessible name — a
+        # screen reader announced the site's primary control as "combo box".
+        # Nothing here could catch that: lint and build do not read the a11y
+        # tree. Reuses the server started above.
+        run: npm run a11y-check

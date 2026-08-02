@@ -36,8 +36,15 @@
 }
 
 .card a {
-  color: #0070f3;
-  text-decoration: none;
+  /* Was a hardcoded #0070f3 — the one raw hex outside the token system, and it
+     failed WCAG AA on this background at 4.22:1 (needs 4.5). The brand link
+     token clears it at 7.65:1, so the accessible fix and the correct fix are
+     the same one. */
+  color: var(--text-link);
+  /* Inline within the card's description text, not a whole-card link, so it
+     needs a non-colour signal too (WCAG 1.4.1). */
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
 }
 
 .card a:hover {

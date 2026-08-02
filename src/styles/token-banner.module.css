@@ -20,7 +20,10 @@
 }
 .badge {
   background: var(--secondary, #FF4DE3);
-  color: #fff;
+  /* Dark on pink, not white on pink: white gave 2.81:1 against this background
+     and the badge is 0.7rem, so it needs 4.5:1. Reversing to the dark brand
+     colour gives 6.81:1 and keeps the pink. */
+  color: var(--background, #0F0D1A);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.05em;

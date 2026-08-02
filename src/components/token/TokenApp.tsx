@@ -448,7 +448,9 @@ export default function TokenApp() {
         )}
         <p className={styles.muted}>Pick a round and answer its community quest (published on the PCO channels with its round id):</p>
         <p>
-          <select value={roundId} onChange={(e) => setRoundId(e.target.value)}>
+          {/* An accessible name is required: the visible label sits in a separate
+              paragraph, so a screen reader announced this only as "combo box". */}
+          <select aria-label="Claim round" value={roundId} onChange={(e) => setRoundId(e.target.value)}>
             {/* Each option carries its OWN remaining budget: with several rounds open,
                 which ones still have room is the thing being chosen between. */}
             {rounds.map((r) => (
