@@ -17,11 +17,14 @@
 import { chromium } from 'playwright';
 
 const BASE = process.argv[2] || 'http://localhost:3000';
-const ROUTES = [
-  '/', '/token', '/token/guide', '/community', '/contracts', '/docs',
-  '/mission-vision', '/nft', '/nft/buyers', '/nft/creators', '/nft/sellers',
-  '/nft/marketplaces', '/roadmap',
-];
+// Override for another site: MOBILE_CHECK_ROUTES="/,/about,/pricing"
+const ROUTES = process.env.MOBILE_CHECK_ROUTES
+  ? process.env.MOBILE_CHECK_ROUTES.split(',').map((s) => s.trim()).filter(Boolean)
+  : [
+      '/', '/token', '/token/guide', '/community', '/contracts', '/docs',
+      '/mission-vision', '/nft', '/nft/buyers', '/nft/creators', '/nft/sellers',
+      '/nft/marketplaces', '/roadmap',
+    ];
 // 320 = smallest phone still in use (iPhone SE 1st gen); 375 = the common case;
 // 414 = large phones. A layout that holds at 320 holds everywhere.
 const WIDTHS = [320, 375, 414];
