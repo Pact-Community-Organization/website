@@ -25,6 +25,18 @@ High contrast, readable typography, and simple layouts.
 
 ## 2. Logo (Temporary Phase)
 
+> **Concept on the table, credited in advance.** `01dCod3r` published an original logo concept
+> based on the **Petersen graph G(5,2)** in
+> [org discussion #74](https://github.com/orgs/Pact-Community-Organization/discussions/74)
+> (2025-11-28), offered freely for others to build on. It has **not** been adopted — nothing
+> below derives from it.
+>
+> **If the official mark ends up deriving from that concept, two things happen together:** the
+> credit is stated here and on the site, and the concept receives a Builder Recognition award
+> (see `pco-token/docs/events/BUILDER-RECOGNITION.md`) *separately from* an award to whoever
+> executes the mark. This note lives here because this is the file someone edits at adoption —
+> adopting an idea without crediting it is the failure mode, and no later payment repairs it.
+
 Until the official Foundation logo is created, use this placeholder approach:
 
 - **Text-only logo**  
