@@ -23,19 +23,27 @@ High contrast, readable typography, and simple layouts.
 
 ---
 
-## 2. Logo (Temporary Phase)
+## 2. Logo — the Petersen graph G(5,2)
 
-> **Concept on the table, credited in advance.** `01dCod3r` published an original logo concept
-> based on the **Petersen graph G(5,2)** in
+> **Credit.** The organization's mark is the **Petersen graph G(5,2)**, from an original
+> concept published by `01dCod3r` in
 > [org discussion #74](https://github.com/orgs/Pact-Community-Organization/discussions/74)
-> (2025-11-28), offered freely for others to build on. It has **not** been adopted — nothing
-> below derives from it.
+> on 2025-11-28 and offered freely for others to build on. **It is in use** as the avatar on
+> the GitHub organization, X (@PactCommOrg) and Telegram.
 >
-> **If the official mark ends up deriving from that concept, two things happen together:** the
-> credit is stated here and on the site, and the concept receives a Builder Recognition award
-> (see `pco-token/docs/events/BUILDER-RECOGNITION.md`) *separately from* an award to whoever
-> executes the mark. This note lives here because this is the file someone edits at adoption —
-> adopting an idea without crediting it is the failure mode, and no later payment repairs it.
+> Recognized with 1,000 PCO in two Builder Recognition grants
+> (`inn2f65gmBw9EKMgz1OIE7CrBSKd65WWV_8O3N34jcQ` and its correction).
+>
+> **Correction, recorded because the mistake is instructive.** An earlier version of this note
+> said the concept had *not* been adopted, and the first grant's on-chain reason said the same.
+> That was wrong. It was concluded by grepping the repositories for "petersen" and finding
+> nothing — but the mark lives on the profile avatars, not in a repo, so the check could never
+> have established the claim it was used for. Anyone re-checking whether a design is in use
+> must look at where it is actually displayed.
+>
+> **If the mark is ever redrawn or replaced**, credit for the underlying concept stays with
+> `01dCod3r`, and whoever executes the new artwork is recognized separately
+> (see `pco-token/docs/events/BUILDER-RECOGNITION.md`).
 
 Until the official Foundation logo is created, use this placeholder approach:
 
