@@ -7,12 +7,12 @@ const DocsHub = () => {
   const links = [
     {
       name: 'Pact Language Docs',
-      href: 'https://docs.kadena.io/smart-contract-dev',
+      href: 'https://kda-chain.org/docs/smart-contract-dev',
       icon: <Book size={24} color="var(--primary)" />
     },
     {
-      name: 'Kadena Dev Portal',
-      href: 'https://docs.kadena.io/',
+      name: 'KDA-CE Dev Portal',
+      href: 'https://kda-chain.org/docs/',
       icon: <Code size={24} color="var(--primary)" />
     },
     { 

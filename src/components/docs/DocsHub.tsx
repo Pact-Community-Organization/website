@@ -18,13 +18,13 @@ const links = [
   },
   {
     title: 'Pact Documentation',
-    url: 'https://docs.kadena.io/smart-contract-dev',
-    description: 'Writing smart contracts in the Pact language — the official Kadena documentation.',
+    url: 'https://kda-chain.org/docs/smart-contract-dev',
+    description: 'Writing smart contracts in the Pact language — the Kadena Community Edition documentation.',
   },
   {
-    title: 'Kadena Developer Portal',
-    url: 'https://docs.kadena.io/',
-    description: 'The official Kadena developer documentation portal.',
+    title: 'KDA-CE Developer Portal',
+    url: 'https://kda-chain.org/docs/',
+    description: 'The Kadena Community Edition developer documentation portal.',
   },
   {
     title: 'Foundation Documentation',
@@ -33,7 +33,7 @@ const links = [
   },
   {
     title: 'Pact Tutorials',
-    url: 'https://docs.kadena.io/quickstart',
+    url: 'https://kda-chain.org/docs/quickstart',
     description: 'Quickstart guides for building on Kadena with Pact.',
   },
 ];
