@@ -7,7 +7,7 @@
 //             by the connected wallet, which pays its own coin.GAS. (Proposals are
 //             ADMIN-AUTHORED — PROPOSAL-OPS gates create/cancel to the gov or ops
 //             keyset — so this library deliberately exposes no propose path.)
-import { CFG, T, C, G, CHAINS, local, localOn, buildExec, submitAndPoll, cmdHash, pactHash, signHash, ephemeralGasSigner } from './chain';
+import { CFG, T, C, G, CHAINS, local, localOn, buildExec, submitAndPoll, cmdHash, pactHash, signHash, ephemeralGasSigner, supportsChainLocalVoting } from './chain';
 import { walletSign, type ConnectedWallet } from './wallets';
 
 // ---------- reads ----------
@@ -58,19 +58,94 @@ export async function alreadyClaimed(roundId: string, account: string): Promise<
 export type Proposal = {
   pid: string; title: string; options: string[]; scores: number[]; turnout: number;
   h2h: { available: boolean; pairs: number[]; wins: number[]; condorcet: string };
+  /** true once the deployed module tallies per chain rather than hub-only. */
+  chainLocal: boolean;
+  /** true when at least one chain could not be read, so the total is incomplete. */
+  partial: boolean;
 };
+
+/**
+ * Copeland count from a pairwise matrix — how many other options each one beats
+ * head to head.
+ *
+ * THIS MUST AGREE EXACTLY WITH TWO OTHER IMPLEMENTATIONS: `h2h-wins` in
+ * pco.pact and `copeland` in the token repo's ops/src/combine-votes.ts. All
+ * three require a STRICT majority, so an exact pairwise tie credits neither
+ * side. If they diverged, the page, the chain and the published result could
+ * each name a different winner for the same ballots.
+ */
+function copeland(pairs: number[], k: number): number[] {
+  return Array.from({ length: k }, (_, i) => {
+    let w = 0;
+    for (let j = 0; j < k; j++) if (i !== j && pairs[i * k + j] > pairs[j * k + i]) w++;
+    return w;
+  });
+}
+
+/**
+ * SUM THE MATRICES, THEN DECIDE ONCE. Head-to-head is not additive through its
+ * winner: combining per-chain winners can elect an option that loses the actual
+ * head-to-head, which is why this adds the raw matrices and runs Copeland on the
+ * total rather than asking each chain who won.
+ *
+ * REFUSES TO PRESENT A PARTIAL TOTAL AS A RESULT. A chain that does not answer is
+ * not a zero — it is an unknown — so the count of chains read is carried out to
+ * the UI as `partial`, and the caller says so rather than quietly showing a
+ * smaller number. The authoritative published result comes from the token repo's
+ * combine-votes, which additionally refuses to publish at all under nine
+ * conditions; this is the live view, not the certificate.
+ */
+async function combineAcrossChains(pid: string):
+  Promise<{ h2h: Proposal['h2h']; turnout: number; partial: boolean } | null> {
+  const reads = await Promise.all(CHAINS.map(async (ch) => {
+    try {
+      const h = (await localOn(ch, `(${T}.get-head-to-head "${pid}")`)) as Record<string, unknown>;
+      return { ch, h };
+    } catch { return null; }
+  }));
+  const good = reads.filter((x): x is { ch: string; h: Record<string, unknown> } => x !== null);
+  if (!good.length) return null;
+
+  const first = good[0].h;
+  const k = ((first.options as string[]) ?? []).length;
+  if (!k) return null;
+  const pairs = new Array<number>(k * k).fill(0);
+  let turnout = 0;
+  let any = false;
+  for (const { h } of good) {
+    turnout += dec(h.turnout);
+    if (!h.available || !Array.isArray(h.pairs) || (h.pairs as unknown[]).length !== k * k) continue;
+    any = true;
+    (h.pairs as unknown[]).forEach((v, i) => { pairs[i] += dec(v); });
+  }
+  const wins = copeland(pairs, k);
+  const ci = wins.findIndex((w) => w === k - 1);
+  return {
+    turnout,
+    partial: good.length !== CHAINS.length,
+    h2h: { available: any, pairs, wins, condorcet: ci >= 0 ? (first.options as string[])[ci] : '' },
+  };
+}
 export async function openProposals(): Promise<Proposal[]> {
   const ids = (await local(`(${T}.open-ids)`)) as string[];
+  // The governance upgrade makes voting CHAIN-LOCAL: each chain tallies only its own
+  // ballots, and the result is the sum of all 20. Until the upgrade lands this
+  // page keeps reading the hub alone, which is correct there and only there —
+  // under the new module chain 0's tally is ONE chain's tally, not the result.
+  const chainLocal = await supportsChainLocalVoting(CFG.chain).catch(() => false);
   const out: Proposal[] = [];
   for (const pid of ids) {
     const r = (await local(`(${T}.get-results "${pid}")`)) as Record<string, unknown>;
     const h = (await local(`(${T}.get-head-to-head "${pid}")`).catch(() => null)) as Record<string, unknown> | null;
+    const combined = chainLocal ? await combineAcrossChains(pid) : null;
     out.push({
       pid, title: String(r.title ?? ''),
       options: (r.options as string[]) ?? [],
       scores: ((r.scores as unknown[]) ?? []).map(dec),
-      turnout: dec(r.turnout),
-      h2h: {
+      turnout: combined ? combined.turnout : dec(r.turnout),
+      chainLocal,
+      partial: combined ? combined.partial : false,
+      h2h: combined ? combined.h2h : {
         available: Boolean(h?.available),
         pairs: ((h?.pairs as unknown[]) ?? []).map(dec),
         wins: ((h?.wins as unknown[]) ?? []).map(dec),
@@ -172,15 +247,19 @@ export async function kdaBalance(account: string): Promise<number> {
 }
 
 // ---------- self-paid actions (connected wallet pays its own gas) ----------
-async function selfPaid(w: ConnectedWallet, code: string, caps: { name: string; args: unknown[] }[], data?: Record<string, unknown>): Promise<Record<string, unknown>> {
+// `chainId` defaults to the hub, so every existing caller is unchanged. Only the
+// vote path passes anything else, and only once the deployed module accepts it —
+// the same value goes into the SIGNED payload and selects the endpoint, because
+// a mismatch between the two is rejected by the node.
+async function selfPaid(w: ConnectedWallet, code: string, caps: { name: string; args: unknown[] }[], data?: Record<string, unknown>, chainId: string = CFG.chain): Promise<Record<string, unknown>> {
   const unsigned = buildExec({
-    code, data,
+    code, data, chainId,
     sender: w.account,
     signers: [{ pubKey: w.publicKey, caps: [{ name: 'coin.GAS', args: [] }, ...caps] }],
     gasLimit: 2500, gasPrice: 1e-7,
   });
   const signed = await walletSign(w, unsigned, caps);
-  return submitAndPoll(signed);
+  return submitAndPoll(signed, chainId);
 }
 
 export function transfer(w: ConnectedWallet, to: string, amount: string) {
@@ -208,13 +287,19 @@ export function transferCrossChain(w: ConnectedWallet, to: string, targetChain: 
     { rg: { keys: [to.slice(2)], pred: 'keys-all' } });
 }
 const rankStr = (ranking: number[]) => `[${ranking.join(' ')}]`;
-export function vote(w: ConnectedWallet, pid: string, ranking: number[]) {
-  return selfPaid(w, `(${T}.cast-vote "${pid}" "${w.account}" ${rankStr(ranking)})`, [{ name: `${T}.VOTE`, args: [pid, w.account] }], undefined);
+// VOTING FROM A CHOSEN CHAIN. `chainId` is optional and defaults
+// to the hub, so behaviour against the currently deployed hub-only module is
+// unchanged. Callers must not offer a non-hub chain until
+// supportsChainLocalVoting(chain) answers true for THAT chain — the deployed
+// module aborts an off-hub ballot with "governance lives on the hub chain only",
+// and a 20-transaction upgrade lands one chain at a time.
+export function vote(w: ConnectedWallet, pid: string, ranking: number[], chainId?: string) {
+  return selfPaid(w, `(${T}.cast-vote "${pid}" "${w.account}" ${rankStr(ranking)})`, [{ name: `${T}.VOTE`, args: [pid, w.account] }], undefined, chainId);
 }
 // Cast a ballot FOR another account (the cold one) signed by its registered
 // vote key — the signer w is the HOT key and pays its own gas.
-export function voteAs(w: ConnectedWallet, coldAccount: string, pid: string, ranking: number[]) {
-  return selfPaid(w, `(${T}.cast-vote "${pid}" "${coldAccount}" ${rankStr(ranking)})`, [{ name: `${T}.VOTE`, args: [pid, coldAccount] }], undefined);
+export function voteAs(w: ConnectedWallet, coldAccount: string, pid: string, ranking: number[], chainId?: string) {
+  return selfPaid(w, `(${T}.cast-vote "${pid}" "${coldAccount}" ${rankStr(ranking)})`, [{ name: `${T}.VOTE`, args: [pid, coldAccount] }], undefined, chainId);
 }
 // Register/replace the account's dedicated vote key (MAIN wallet signs, scoped
 // to VOTE-KEY-ADMIN). The hot key can then ONLY vote — nothing else.
