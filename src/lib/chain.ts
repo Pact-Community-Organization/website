@@ -27,8 +27,39 @@ export const CFG = {
 export const T = `${CFG.ns}.pco`;
 export const C = `${CFG.ns}.pco-claim`;
 export const G = `${CFG.ns}.pco-gas-station`;
-export const API = `${CFG.host}/chainweb/0.0/${CFG.networkId}/chain/${CFG.chain}/pact/api/v1`;
+// (A hub-pinned `API` constant lived here. It is gone deliberately: every caller
+// now derives its endpoint from the chain it is actually talking to, and leaving
+// a ready-made chain-0 URL in scope is how a chain-local call quietly becomes a
+// hub call again.)
 export const CHAINS = Array.from({ length: 20 }, (_, i) => String(i));
+
+/**
+ * DOES THE DEPLOYED MODULE SUPPORT CHAIN-LOCAL VOTING?
+ *
+ * This page is live against the CURRENTLY DEPLOYED module, which is hub-only:
+ * `cast-vote` off the hub aborts with "governance lives on the hub chain only",
+ * and a question exists on chain 0 alone. So every chain-local behaviour below is
+ * gated on this probe, and while it answers false the page behaves exactly as it
+ * did before — that is the point, not a fallback.
+ *
+ * `live-ids` is the probe because it is NEW in that upgrade and has no counterpart
+ * in the deployed module (verified against mainnet: "has no such member:
+ * live-ids"). Checking for a capability beats checking a version string: it is
+ * true exactly when the behaviour it gates is available.
+ *
+ * Probed PER CHAIN, because a 20-transaction upgrade lands one chain at a time —
+ * during the ceremony some chains answer yes and others no, and offering to vote
+ * on a chain that has not been upgraded yet would fail in the user's face.
+ */
+const _chainLocal = new Map<string, Promise<boolean>>();
+export function supportsChainLocalVoting(chainId: string): Promise<boolean> {
+  let p = _chainLocal.get(chainId);
+  if (!p) {
+    p = localOn(chainId, `(${CFG.ns}.pco.live-ids)`).then(() => true).catch(() => false);
+    _chainLocal.set(chainId, p);
+  }
+  return p;
+}
 
 export type Cap = { name: string; args: unknown[] };
 
@@ -144,6 +175,7 @@ export function buildExec(opts: {
   signers: { pubKey: string; caps: Cap[] }[];
   gasLimit?: number;
   gasPrice?: number;
+  chainId?: string;            // defaults to the hub — see submitAndPoll
 }): { cmd: string; hash: string } {
   const cmd = JSON.stringify({
     networkId: CFG.networkId,
@@ -153,7 +185,7 @@ export function buildExec(opts: {
       clist: s.caps.map((c) => ({ name: c.name, args: c.args })),
     })),
     meta: {
-      chainId: CFG.chain, sender: opts.sender,
+      chainId: opts.chainId ?? CFG.chain, sender: opts.sender,
       gasLimit: opts.gasLimit ?? 2500, gasPrice: opts.gasPrice ?? 1e-7,
       ttl: 1800, creationTime: Math.floor(Date.now() / 1000) - 30,
     },
@@ -162,8 +194,18 @@ export function buildExec(opts: {
   return { cmd, hash: cmdHash(cmd) };
 }
 
-export async function submitAndPoll(signed: { cmd: string; hash: string; sigs: { sig: string }[] }): Promise<Record<string, unknown>> {
-  const send = await fetch(`${API}/send`, {
+// THE CHAIN MUST MATCH ON BOTH SIDES. `chainId` is stamped into the SIGNED
+// payload by buildExec and also selects the endpoint here; if they disagree the
+// node rejects the transaction. They are separate arguments because the signing
+// and the sending happen in different places, so this takes the same value the
+// build did — callers that omit it get the hub, which is what every path did
+// before chain-local voting existed.
+export async function submitAndPoll(
+  signed: { cmd: string; hash: string; sigs: { sig: string }[] },
+  chainId: string = CFG.chain,
+): Promise<Record<string, unknown>> {
+  const api = `${CFG.host}/chainweb/0.0/${CFG.networkId}/chain/${chainId}/pact/api/v1`;
+  const send = await fetch(`${api}/send`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ cmds: [signed] }),
   });
@@ -181,7 +223,7 @@ export async function submitAndPoll(signed: { cmd: string; hash: string; sigs: {
   }
   for (let i = 0; i < 60; i++) {
     await new Promise((res) => setTimeout(res, 3000));
-    const r = await fetch(`${API}/poll`, {
+    const r = await fetch(`${api}/poll`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestKeys: [rk] }),
     });
