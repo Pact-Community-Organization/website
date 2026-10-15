@@ -159,25 +159,11 @@ const NftOverview = () => {
             <h3>The specification →</h3>
             <p>The normative rules (S1–S6) every conforming marketplace must obey, and why each one exists.</p>
           </a>
-          <a
-            className={styles.card}
-            href={`${CATALOG}/blob/main/contracts/nft/QUICKSTART.md`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h3>Marketplace quickstart →</h3>
-            <p>Launch your own market, step by step — the companion to the Build-a-marketplace page here.</p>
-          </a>
-          <a
-            className={styles.card}
-            href={`${CATALOG}/blob/main/contracts/nft/TECHNICAL.md`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h3>Technical reference →</h3>
-            <p>Every mechanism down to the code: identity, policies, settlement, auctions, cross-chain.</p>
-          </a>
         </div>
+        <p>
+          The NFT framework is now maintained by Smart Pacts; its quickstart and technical reference
+          are no longer published in the PCO catalog.
+        </p>
       </section>
     </div>
   );
