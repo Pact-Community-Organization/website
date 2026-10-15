@@ -114,15 +114,8 @@ const NftMarketplaces = () => {
             your account on the chain where each sale happens.
           </p>
           <p>
-            The step-by-step companion with the exact quote fields lives in the catalog:{' '}
-            <a href={`${CATALOG}/blob/main/contracts/nft/QUICKSTART.md`} target="_blank" rel="noopener noreferrer">
-              marketplace quickstart
-            </a>{' '}
-            · the field-by-field integration surface is section 10 of the{' '}
-            <a href={`${CATALOG}/blob/main/contracts/nft/TECHNICAL.md`} target="_blank" rel="noopener noreferrer">
-              technical reference
-            </a>
-            .
+            The framework is now maintained by Smart Pacts; its quickstart and technical reference
+            are no longer published in the PCO catalog.
           </p>
         </div>
       </section>
