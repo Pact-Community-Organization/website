@@ -32,6 +32,7 @@ const hashBytes = (cmd: string) => blake2b(enc.encode(cmd), { dkLen: 32 });
 
 type EckoProvider = {
   isKadena?: boolean;
+  name?: unknown;
   request(args: { method: string; networkId?: string; data?: unknown }): Promise<Record<string, unknown>>;
   on(name: string, cb: (event: unknown) => void): void;
 };
@@ -39,8 +40,17 @@ function eckoProvider(): EckoProvider | null {
   const w = window as unknown as { kadena?: EckoProvider };
   return w.kadena?.isKadena && typeof w.kadena.request === 'function' ? w.kadena : null;
 }
-export function eckoAvailable(): boolean {
-  return typeof window !== 'undefined' && eckoProvider() !== null;
+// Linx Wallet's in-app browser injects this same Ecko-shaped provider, named "Linx Wallet"
+// (observed on a phone 2026-08-30), so this adapter is the Linx path too — and every message
+// names the wallet the user is actually holding.
+const LINX = 'Linx Wallet';
+function walletName(p: EckoProvider): string {
+  return p.name === LINX ? LINX : 'EckoWallet';
+}
+/** The injected wallet's name ("EckoWallet" or "Linx Wallet"), or null when none is present. */
+export function injectedWalletName(): string | null {
+  const p = typeof window !== 'undefined' ? eckoProvider() : null;
+  return p ? walletName(p) : null;
 }
 async function waitForEcko(ms = 1500): Promise<EckoProvider | null> {
   const t0 = Date.now();
@@ -64,67 +74,70 @@ function eckoRequest(p: EckoProvider, args: Parameters<EckoProvider['request']>[
 // preview and telling holders to use test accounts only, which contradicted the
 // rest of the site and implied the live token was a test.) `actual` is the
 // network Ecko reported, when we know it — naming it saves the user a hunt.
-function eckoNetworkHelp(actual?: string): string {
-  return `EckoWallet is on ${actual ? `"${actual}"` : 'the wrong network'} — PCO is on Kadena Mainnet `
-    + `(network id ${NETWORK_ID}). Switch EckoWallet to Mainnet with its network selector, then reconnect. `
+function eckoNetworkHelp(actual?: string, who = 'EckoWallet'): string {
+  return `${who} is on ${actual ? `"${actual}"` : 'the wrong network'} — PCO is on Kadena Mainnet `
+    + `(network id ${NETWORK_ID}). Switch ${who} to Mainnet with its network selector, then reconnect. `
     + `No custom network is needed: Mainnet is built in.`;
 }
 
 export async function connectEcko(onSessionEnd?: (reason: string) => void): Promise<ConnectedWallet> {
   const p = await waitForEcko();
   if (!p) throw new Error('EckoWallet not detected — install it from eckowallet.com and reload');
+  const who = walletName(p);
   const net = await eckoRequest(p, { method: 'kda_getNetwork' }, 3000);
   const activeNet = net !== ECKO_SILENT && typeof (net as Record<string, unknown>)?.networkId === 'string' ? (net as Record<string, string>).networkId : undefined;
-  if (activeNet && activeNet !== NETWORK_ID) throw new Error(eckoNetworkHelp(activeNet));
+  if (activeNet && activeNet !== NETWORK_ID) throw new Error(eckoNetworkHelp(activeNet, who));
 
   const res = await eckoRequest(p, { method: 'kda_connect', networkId: NETWORK_ID }, 120000);
-  if (res === ECKO_SILENT) throw new Error('No answer from EckoWallet — the request may have been dismissed; try again');
+  if (res === ECKO_SILENT) throw new Error(`No answer from ${who} — the request may have been dismissed; try again`);
   const r = res as Record<string, unknown>;
   if (r.status !== 'success') {
     const msg = String(r.message ?? '');
-    if (/network invalid|invalid network/i.test(msg)) throw new Error(eckoNetworkHelp(activeNet));
-    if (/connect fail|rejected/i.test(msg)) throw new Error('Connection declined in EckoWallet');
-    throw new Error(`EckoWallet refused the connection${msg ? `: ${msg}` : ''}`);
+    if (/network invalid|invalid network/i.test(msg)) throw new Error(eckoNetworkHelp(activeNet, who));
+    if (/connect fail|rejected/i.test(msg)) throw new Error(`Connection declined in ${who}`);
+    throw new Error(`${who} refused the connection${msg ? `: ${msg}` : ''}`);
   }
   let acct = r.account as { account?: string; publicKey?: string } | undefined;
   if (!acct?.account || !acct?.publicKey) {
     const st = await eckoRequest(p, { method: 'kda_checkStatus', networkId: NETWORK_ID }, 120000);
     const s = st as Record<string, unknown>;
-    if (st === ECKO_SILENT || s.status !== 'success' || !(s.account as { account?: string })?.account) throw new Error('EckoWallet is locked — unlock it, then reconnect');
+    if (st === ECKO_SILENT || s.status !== 'success' || !(s.account as { account?: string })?.account) throw new Error(`${who} is locked — unlock it, then reconnect`);
     acct = s.account as { account: string; publicKey: string };
   }
   const account = String(acct.account);
   const pub = String(acct.publicKey ?? (account.startsWith('k:') ? account.slice(2) : ''));
-  if (!/^[0-9a-f]{64}$/.test(pub)) throw new Error(`EckoWallet returned no usable public key for ${account}`);
+  if (!/^[0-9a-f]{64}$/.test(pub)) throw new Error(`${who} returned no usable public key for ${account}`);
 
   let live = true;
-  p.on('res_accountChange', () => { if (live) { live = false; onSessionEnd?.('EckoWallet switched account or network — reconnect to continue'); } });
+  p.on('res_accountChange', () => { if (live) { live = false; onSessionEnd?.(`${who} switched account or network — reconnect to continue`); } });
 
   return {
-    kind: 'ecko', label: 'EckoWallet', account, publicKey: pub,
+    kind: 'ecko', label: who, account, publicKey: pub,
     async sign(cmd, hash) {
-      if (!live) throw new Error('EckoWallet session ended — reconnect first');
+      if (!live) throw new Error(`${who} session ended — reconnect first`);
       const st = await eckoRequest(p, { method: 'kda_checkStatus', networkId: NETWORK_ID }, 120000);
       const s = st as Record<string, unknown>;
-      if (st === ECKO_SILENT) throw new Error('No answer from EckoWallet — is it unlocked?');
+      if (st === ECKO_SILENT) throw new Error(`No answer from ${who} — is it unlocked?`);
       if (s.status !== 'success') {
-        if (/invalid network|network invalid/i.test(String(s.message ?? ''))) throw new Error(eckoNetworkHelp());
-        throw new Error('EckoWallet session expired — reconnect and try again');
+        if (/invalid network|network invalid/i.test(String(s.message ?? ''))) throw new Error(eckoNetworkHelp(undefined, who));
+        throw new Error(`${who} session expired — reconnect and try again`);
       }
       const r2 = await eckoRequest(p, { method: 'kda_requestQuickSign', data: { networkId: NETWORK_ID, commandSigDatas: [{ cmd, sigs: [{ pubKey: pub, sig: null }] }] } }, 180000);
-      if (r2 === ECKO_SILENT) throw new Error('No answer from EckoWallet — the signing window may have been closed; try again');
+      if (r2 === ECKO_SILENT) throw new Error(`No answer from ${who} — the signing window may have been closed; try again`);
       const rr = r2 as Record<string, unknown>;
       if (rr.status !== 'success') {
         const msg = String(rr.message ?? rr.error ?? '');
-        if (/rejected/i.test(msg)) throw new Error('Signing declined in EckoWallet');
-        throw new Error(`EckoWallet did not sign${msg ? `: ${msg}` : ''}`);
+        if (/rejected/i.test(msg)) throw new Error(`Signing declined in ${who}`);
+        throw new Error(`${who} did not sign${msg ? `: ${msg}` : ''}`);
       }
-      const entry = ((rr.responses ?? rr.quickSignData ?? []) as unknown[])[0] as Record<string, unknown> | undefined;
+      // Ecko answers `responses` (older docs: `quickSignData`); Linx answers `results` over
+      // WalletConnect (dex.bro.pink's "Linx Bug Workaround"), so it is read here too.
+      const entry = ((rr.responses ?? rr.results ?? rr.quickSignData ?? []) as unknown[])[0] as Record<string, unknown> | undefined;
       const sigs = ((entry?.commandSigData as { sigs?: unknown[] })?.sigs ?? (entry?.sigs as unknown[]) ?? []) as { pubKey?: string; sig?: string }[];
       const sig = sigs.find((x) => x?.pubKey === pub)?.sig;
-      if (typeof sig !== 'string' || !sig) throw new Error('EckoWallet returned no signature');
+      if (typeof sig !== 'string' || !sig) throw new Error(`${who} returned no signature`);
       const outcome = entry?.outcome as { hash?: string } | undefined;
-      if (typeof outcome?.hash === 'string' && outcome.hash !== hash) throw new Error('EckoWallet signed a different command than requested');
+      if (typeof outcome?.hash === 'string' && outcome.hash !== hash) throw new Error(`${who} signed a different command than requested`);
       return sig;
     },
     disconnect() { live = false; p.request({ method: 'kda_disconnect', networkId: NETWORK_ID }).catch(() => {}); },

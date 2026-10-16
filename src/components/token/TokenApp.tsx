@@ -9,7 +9,7 @@ import {
   voteAs, setVoteKey, clearVoteKey, voteKeyActive, rotate, lookupAllChains, kdaBalance,
   type Round, type Proposal, checkCode } from '@/lib/pco';
 import {
-  connectEcko, connectZelcore, connectLedger, eckoAvailable, zelcoreBlockedByBrowser,
+  connectEcko, connectZelcore, connectLedger, injectedWalletName, zelcoreBlockedByBrowser,
   type ConnectedWallet,
 } from '@/lib/wallets';
 
@@ -68,7 +68,7 @@ export default function TokenApp() {
 
   // ECKO DETECTION MUST NOT HAPPEN DURING RENDER.
   //
-  // eckoAvailable() reads window, so the server renders "not detected / disabled"
+  // injectedWalletName() reads window, so the server renders "not detected / disabled"
   // and a client with the extension renders "enabled" — a hydration mismatch that
   // React explicitly does NOT patch up for attributes. The server's disabled=""
   // could therefore stick, leaving the Ecko button permanently unclickable for
@@ -78,9 +78,12 @@ export default function TokenApp() {
   // render produce, so they agree. The extension also injects asynchronously, so
   // one check on mount can miss it — re-check for a couple of seconds.
   const [eckoReady, setEckoReady] = useState<boolean | null>(null);
+  // Inside Linx Wallet's in-app browser the injected provider is Linx itself, so the button
+  // names the wallet that was detected rather than sending the user to look for an extension.
+  const [injectedName, setInjectedName] = useState('EckoWallet');
   useEffect(() => {
     let done = false;
-    const check = () => { if (!done && eckoAvailable()) { setEckoReady(true); done = true; } };
+    const check = () => { const n = injectedWalletName(); if (!done && n) { setInjectedName(n); setEckoReady(true); done = true; } };
     check();
     const timers = [200, 600, 1200, 2000].map((ms) => setTimeout(check, ms));
     const settle = setTimeout(() => { if (!done) setEckoReady(false); }, 2200);
@@ -349,7 +352,7 @@ export default function TokenApp() {
         </p>
         <p className={styles.walletButtons}>
           <button className={styles.btn} disabled={eckoReady !== true || wallet?.kind === 'ecko'} onClick={() => connect('ecko')}>
-            EckoWallet{eckoReady === null ? ' (checking…)' : eckoReady === false ? ' (not detected)' : wallet?.kind === 'ecko' ? ' ✓' : ''}
+            {injectedName}{eckoReady === null ? ' (checking…)' : eckoReady === false ? ' (not detected)' : wallet?.kind === 'ecko' ? ' ✓' : ''}
           </button>
           <button className={styles.btn} disabled={wallet?.kind === 'zelcore'} onClick={() => connect('zelcore')}>
             Zelcore{wallet?.kind === 'zelcore' && ' ✓'}

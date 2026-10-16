@@ -15,13 +15,26 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const DESCRIPTION = "Making it easy and safe for businesses to start building with Pact.";
+
+// Link previews and wallet dApp lists (Linx shows a site's name and icon) read these. The icons
+// and the preview image are the files beside this one: icon.png, apple-icon.png, favicon.ico and
+// opengraph-image.png, all drawn from the organization's mark (design/brand-guidelines.md §2).
 export const metadata: Metadata = {
+  metadataBase: new URL("https://pact-community.org"),
   title: {
     default: "Pact Community Organization",
     template: "%s — Pact Community Organization",
   },
-  description:
-    "Making it easy and safe for businesses to start building with Pact.",
+  description: DESCRIPTION,
+  openGraph: {
+    title: "Pact Community Organization",
+    description: DESCRIPTION,
+    siteName: "Pact Community Organization",
+    url: "/",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({
