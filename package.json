@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.36.0",
-    "@noble/curves": "^1.9.7",
+    "@noble/curves": "^2.2.0",
     "@noble/hashes": "^1.8.0",
     "@zondax/ledger-kadena": "^0.0.4",
     "buffer": "^6.0.3",
